@@ -33,8 +33,13 @@ for system,arch,caddy_os,frp_os in [('windows','amd64','windows','windows'),('li
   shutil.copy2(folder/(exe+suffix),stage/'bin'/(exe+suffix))
   if system=='linux' and dep=='frp':shutil.copy2(folder/'frps',stage/'bin/frps')
   for f in folder.glob('LICENSE*'):shutil.copy2(f,license_dir/(dep+'-'+f.name))
- for f in (ROOT/'scripts').iterdir():
-  if (system=='windows' and f.suffix=='.ps1') or (system=='linux' and f.suffix in ('.sh','.py')):shutil.copy2(f,stage/f.name)
+ # Source development launchers require a checkout and do not belong in installation packages.
+ deploy_scripts={
+  'windows':('install-windows.ps1','upgrade-windows.ps1','uninstall-windows.ps1','start.ps1'),
+  'linux':('install-cloud.sh','upgrade-cloud.sh','uninstall-cloud.sh','block-cloud.sh','nginx-integrate.py'),
+  'darwin':(),
+ }
+ for script in deploy_scripts[system]:shutil.copy2(ROOT/'scripts'/script,stage/script)
  for f in ('README.md','LICENSE','THIRD_PARTY_NOTICES.md'):shutil.copy2(ROOT/f,stage/f)
  shutil.copytree(ROOT/'docs',stage/'docs');shutil.copytree(ROOT/'schemas',stage/'schemas');shutil.copytree(license_dir,stage/'licenses');shutil.copy2(ROOT/'release/dependencies.lock.json',stage/'dependencies.lock.json')
  # Include package dependency inventories even though end users don't need build tools.

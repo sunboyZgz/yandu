@@ -170,28 +170,18 @@ func command(args []string) error {
 		fmt.Println(model.Version)
 		return nil
 	case "ui":
-		client := &http.Client{Timeout: 500 * time.Millisecond}
-		resp, err := client.Get("http://" + model.ManagementAddr + "/api/v1/health")
-		if err == nil {
-			resp.Body.Close()
+		fs := flag.NewFlagSet("ui", flag.ContinueOnError)
+		noOpen := fs.Bool("no-open", false, "仅准备管理页，不打开浏览器")
+		requireRunning := fs.Bool("require-running", false, "仅连接已运行的 Agent，不启动后台进程或系统服务")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
 		}
-		if err != nil {
-			if err = startService(); err != nil {
-				return err
-			}
-			ready := false
-			for i := 0; i < 80; i++ {
-				resp, err = client.Get("http://" + model.ManagementAddr + "/api/v1/health")
-				if err == nil {
-					resp.Body.Close()
-					ready = true
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			if !ready {
-				return fmt.Errorf("本地服务未启动，请查看状态目录中的 agent.log")
-			}
+		if fs.NArg() != 0 {
+			return fmt.Errorf("ui 不接受位置参数")
+		}
+		client := &http.Client{Timeout: 500 * time.Millisecond}
+		if err := ensureAgentRunning(client, startService, *requireRunning); err != nil {
+			return err
 		}
 		b, err := request("POST", "/launch", map[string]any{})
 		if err != nil {
@@ -203,7 +193,7 @@ func command(args []string) error {
 		if err = json.Unmarshal(b, &v); err != nil {
 			return err
 		}
-		if len(args) > 1 && args[1] == "--no-open" {
+		if *noOpen {
 			fmt.Println("本地管理页已就绪")
 			return nil
 		}

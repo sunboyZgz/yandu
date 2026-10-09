@@ -42,6 +42,7 @@ export default defineConfig({
         { text: '认识檐渡', link: '/guide/introduction' },
         { text: '快速开始', link: '/guide/getting-started' },
         { text: '开发模式使用', link: '/guide/development' },
+        { text: 'Windows 开发模式', link: '/guide/development-windows' },
         { text: '准备云端网站', link: '/guide/cloud' },
         { text: '安装 Windows 客户端', link: '/guide/windows' },
         { text: '导入连接包', link: '/guide/connection' },

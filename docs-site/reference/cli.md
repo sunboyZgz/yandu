@@ -22,6 +22,8 @@ yandu version
 
 `ui` 检查或启动 Agent 并打开浏览器；`status` 返回脱敏实际状态；`doctor` 导出诊断信息。
 
+源码开发启动器使用 `ui --require-running`，只连接已经运行的 Agent；即使开发进程恰好退出，也不会启动安装版的系统服务。`ui --no-open` 只准备管理页会话，不打开浏览器。
+
 ## 指定状态目录
 
 全局参数放在命令前：

@@ -11,7 +11,8 @@ description: 选择源码开发模式或 Windows 安装包，准备两端连接�
 | --- | --- |
 | 当前 macOS 从源码使用工具 | [开发模式使用](./development.md)：`make dev`，或使用 `make dev-serve` 前台调试；素材填写 macOS 绝对路径 |
 | Windows 安装包部署 | 继续阅读本页的安装步骤 |
-| Windows / Linux 从源码运行 | [其他平台源码步骤](./development.md#其他平台从源码启动) |
+| Windows 从源码运行 | [Windows 开发模式](./development-windows.md)：普通 PowerShell 运行开发入口 |
+| Linux 从源码运行 | [Linux 源码步骤](./development.md#linux-x64) |
 
 以下流程面向 Windows 安装包。目标是让 `https://example.com/blog/xxx/photo.png` 读取到 `D:/oss/blog/xxx/photo.png`，同时保留云端 `/blog` 的页面行为。
 

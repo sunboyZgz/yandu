@@ -57,6 +57,8 @@ description: 回答文件存放、资源公开、浏览器关闭、云端配置�
 
 完整客户端包已包含运行程序与组件，无需 Node.js、Go、Python 或 Docker Desktop。只有构建源码或文档站时需要相应开发工具。
 
+从源码使用时，Windows x64 也有原生入口：安装 Go、Node.js/npm 和 Python 3.10+，按 [Windows 开发模式](./development-windows.md) 运行 `scripts/dev.ps1`。
+
 ## 是否已经通过真实公网与 Windows 验收？
 
 当前是 v0.1.0 验证版。本机真实组件链路、安全测试与容量场景已验证；Windows 真机、Ubuntu 安装和真实公网尚需验收。完整证据见 [验证报告](../reference/verification.md)。

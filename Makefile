@@ -7,14 +7,11 @@ ui:
 check: ui
 	go test ./...
 	go vet ./...
+	python3 scripts/test_dev.py
 test-race:
 	go test -race ./...
-dev-build: ui
-	python3 release/fetch-components.py
-	mkdir -p "$(DEV_BIN_DIR)/bin"
-	go build -o "$(DEV_BIN_DIR)/yandu" ./cmd/yandu
-	cp release/artifacts/deps/caddy_2.11.4_mac_arm64/caddy "$(DEV_BIN_DIR)/bin/"
-	cp release/artifacts/deps/frp_0.71.0_darwin_arm64/frpc "$(DEV_BIN_DIR)/bin/"
+dev-build:
+	python3 scripts/dev.py build --bin-dir "$(DEV_BIN_DIR)" --state-dir "$(DEV_STATE_DIR)"
 dev: dev-build
 	"$(DEV_BIN_DIR)/yandu" --state-dir "$(DEV_STATE_DIR)" ui
 dev-serve: dev-build

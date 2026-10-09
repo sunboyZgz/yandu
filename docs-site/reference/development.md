@@ -11,6 +11,14 @@ description: 构建源码、运行 VitePress 文档站，以及把静态文档�
 
 完整操作流程见 [开发模式使用](../guide/development.md)，包含源码启动、前台调试、macOS 素材目录、导入连接包、创建与应用项目、重启和停止 Agent。
 
+Windows x64 已提供原生 PowerShell 入口，详见 [Windows 开发模式](../guide/development-windows.md)：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+跨平台启动器为 `scripts/dev.py`，组件平台与版本由当前系统及锁文件选择；可运行 `python3 scripts/test_dev.py -v` 验证启动流程。源码开发脚本不放入安装包。
+
 当前 macOS ARM64 的快捷命令：
 
 ```bash

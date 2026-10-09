@@ -43,6 +43,20 @@ make dev
 
 配对、macOS 素材目录、项目操作与重启的完整流程见 [开发模式使用](docs-site/guide/development.md)。Makefile 默认程序与状态目录分别为 `.local/bin/`、`.yandu/`，也可通过 `DEV_BIN_DIR` / `DEV_STATE_DIR` 覆盖；Agent 的监听端口仍固定。
 
+## Windows 原生开发模式
+
+Windows x64 安装 Go 1.26.2、Node.js 22/npm 和 Python 3.10+ 后，在源码根目录的普通 PowerShell 中执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
+```
+
+脚本自动构建 React、校验并准备 Windows Caddy/frpc、编译 `yandu.exe`，以前台进程启动并打开管理页；按 Ctrl+C 停止。它使用当前用户和项目 `.yandu/` 状态，不注册系统服务。已占用的端口会明确报错，不自动停止安装版。
+
+`-Mode build` 仅构建；第二个终端可用 `-Mode ui`、`status` 或 `doctor`。完整步骤见 [Windows 开发模式](docs-site/guide/development-windows.md)。Windows 程序已交叉构建，启动逻辑与脚本入口经过验证；当前 macOS 环境不代表已完成 Windows 真机运行验收。
+
+通用源码入口为 `python3 scripts/dev.py run`，支持 Windows x64、Linux x64、macOS ARM64；`build --target windows-amd64` 可交叉构建 Windows 开发程序。构建器只准备选定平台的资产，Go 编译与组件安装使用临时文件，避免在 Unix 上截断运行中的二进制。
+
 ## 部署
 
 完整包位于 `release/artifacts/`：

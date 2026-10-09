@@ -1,13 +1,19 @@
 ---
 title: 开发模式使用
-description: 从源码在 macOS 启动檐渡，调试前台 Agent，使用本地目录、连接包与项目，并重新构建和停止开发实例。
+description: 选择 Windows、macOS 或 Linux 的源码开发入口，调试 Agent，使用本地目录与项目，并重新构建和停止开发实例。
 ---
 
 # 开发模式使用
 
-开发模式从源码构建并运行本机客户端。你可以在当前 macOS 上使用同一套项目、目录和连接功能，无需安装 Windows 客户端。
+开发模式从源码构建并运行本机客户端。Windows x64、macOS ARM64 和 Linux x64 均有原生入口，可以使用同一套项目、目录与连接功能。
 
-本页主流程适用于 **macOS Apple Silicon（ARM64）**。现有 Makefile 的组件复制路径针对该平台；Windows x64 和 Linux x64 的源码启动步骤见 [其他平台](#其他平台从源码启动)。
+| 平台 | 推荐入口 |
+| --- | --- |
+| Windows x64 | [Windows 开发模式](./development-windows.md)：普通 PowerShell 运行 `.\scripts\dev.ps1` |
+| macOS ARM64 | 本页主流程：`make dev`，或 `make dev-serve` |
+| Linux x64 | [Linux 源码步骤](#linux-x64)，或 `python3 scripts/dev.py run` |
+
+本页后续示例以 **macOS Apple Silicon（ARM64）** 为主。Windows 的一键构建、启动、权限和停止步骤已整理为独立指南。
 
 ## 选择启动方式
 
@@ -15,7 +21,7 @@ description: 从源码在 macOS 启动檐渡，调试前台 Agent，使用本地
 | --- | --- | --- |
 | `make dev` | 快速构建并打开工具 | Agent 在后台运行，关闭浏览器或终端后继续运行 |
 | `make dev-serve` | 开发与调试 | Agent 在当前终端运行，按 Ctrl+C 停止 |
-| `make dev-build` | 仅构建 | 编译管理页、下载并校验组件、构建 Go 客户端，不启动 Agent |
+| `make dev-build` | 仅构建 | 自动选择当前平台组件，编译管理页与 Go 客户端，不启动 Agent |
 | `make docs-dev` | 编辑本使用文档 | 启动 VitePress，端口为 5174 |
 
 **工具管理页在 `127.0.0.1:18765`，使用文档在 `127.0.0.1:5174`。** 在文档页面中不能操作项目。
@@ -24,7 +30,7 @@ description: 从源码在 macOS 启动檐渡，调试前台 Agent，使用本地
 
 ## 准备开发环境
 
-当前工程使用 Go 1.26.2、Node.js 22、npm 和 Python 3。在终端检查：
+当前工程使用 Go 1.26.2、Node.js 22、npm 和 Python 3.10+。在终端检查：
 
 ```bash
 go version
@@ -42,7 +48,7 @@ cd ~/Documents/my-projects/yandu
 
 如果你把源码放在其他位置，请修改 `cd` 的路径。后文的 `$PWD` 均要求当前目录为项目根目录。
 
-首次构建需要获取 npm/Go 依赖和 GitHub 上的组件。Caddy 2.11.4 与 frp 0.71.0 的版本及校验值来自仓库 `release/dependencies.lock.json`；组件下载脚本会准备锁定的多平台资产。
+首次构建需要获取 npm/Go 依赖和 GitHub 上的组件。Caddy 2.11.4 与 frp 0.71.0 的版本及校验值来自仓库 `release/dependencies.lock.json`；开发构建器只准备当前目标平台的两个资产。
 
 ## 第一次启动并打开工具
 
@@ -282,28 +288,13 @@ cp release/artifacts/deps/frp_0.71.0_linux_amd64/frpc .local/bin/bin/
 
 ### Windows x64
 
-在源码根目录的 PowerShell 中执行：
+在源码根目录的普通 PowerShell 中执行：
 
 ```powershell
-npm --prefix web ci
-npm --prefix web run build
-python release/fetch-components.py
-New-Item -ItemType Directory -Force .local/bin/bin | Out-Null
-go build -o .local/bin/yandu.exe ./cmd/yandu
-Copy-Item release/artifacts/deps/caddy_2.11.4_windows_amd64/caddy.exe .local/bin/bin/
-Copy-Item release/artifacts/deps/frp_0.71.0_windows_amd64/frpc.exe .local/bin/bin/
-$YanduDevState = Join-Path $PWD '.yandu'
-& .local/bin/yandu.exe --state-dir $YanduDevState serve
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 ```
 
-第二个 PowerShell 窗口同样进入源码根目录，再执行：
-
-```powershell
-$YanduDevState = Join-Path $PWD '.yandu'
-& .local/bin/yandu.exe --state-dir $YanduDevState ui
-```
-
-此时 Agent 以当前登录用户运行，素材权限按该用户检查。若安装包的 Yandu 服务已占用管理端口，应先停止该服务，再启动源码实例；二者不能同时使用当前固定端口。
+自动构建并准备 Windows 组件，前台启动并打开管理页；按 Ctrl+C 停止。完整步骤、诊断命令、Windows 素材目录与开发状态权限见 [Windows 开发模式](./development-windows.md)。
 
 ## 验证代码修改
 
