@@ -1,0 +1,36 @@
+{
+  "caddy": {
+    "version": "2.11.4",
+    "assets": {
+      "caddy_2.11.4_linux_amd64.tar.gz": {
+        "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz",
+        "sha256": "527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
+      },
+      "caddy_2.11.4_mac_arm64.tar.gz": {
+        "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_mac_arm64.tar.gz",
+        "sha256": "9efb0af2d6cf09cfb5053c0e51721b9b3d4956d346234f39368d943d25a3c9a7"
+      },
+      "caddy_2.11.4_windows_amd64.zip": {
+        "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_windows_amd64.zip",
+        "sha256": "1708333f79e274c7697285afe6d592ab39314e0b131e9ec6bea08ad27df62ebf"
+      }
+    }
+  },
+  "frp": {
+    "version": "0.71.0",
+    "assets": {
+      "frp_0.71.0_darwin_arm64.tar.gz": {
+        "url": "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_darwin_arm64.tar.gz",
+        "sha256": "45be02b186860d375ed49a8941ae9569628a54bf14e67fc36b29c98c99dabcc6"
+      },
+      "frp_0.71.0_linux_amd64.tar.gz": {
+        "url": "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz",
+        "sha256": "84f27e39f11169f7adcef8e8b70c9329de17747b1f14dad9fb95eef5682ea716"
+      },
+      "frp_0.71.0_windows_amd64.zip": {
+        "url": "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_windows_amd64.zip",
+        "sha256": "9e5062e3e5cf07e67144a3a4acf175ef6a2486f3605dd6cf288bae34ab39819f"
+      }
+    }
+  }
+}
