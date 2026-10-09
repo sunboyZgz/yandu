@@ -7,15 +7,21 @@ description: 构建源码、运行 VitePress 文档站，以及把静态文档�
 
 工具管理页是 Go 内嵌的 React 应用；本网站是独立的 VitePress 文档站。文档站不提供目录管理或云端配置 API。
 
-## 运行工具源码
+## 工具开发模式入口
 
-当前 macOS ARM64 开发环境需要 Go 1.26.2、Node.js 22 和 Python 3：
+完整操作流程见 [开发模式使用](../guide/development.md)，包含源码启动、前台调试、macOS 素材目录、导入连接包、创建与应用项目、重启和停止 Agent。
+
+当前 macOS ARM64 的快捷命令：
 
 ```bash
-make dev
+make dev          # 后台启动并打开管理页
+make dev-build    # 仅构建，不启动
+make dev-serve    # 前台调试；使用前先停止已有 Agent
 ```
 
-构建客户端，下载并校验锁定组件，使用仓库 `.yandu/` 启动本机界面。
+这些命令针对同一套默认 `.local/bin/` 程序与 `.yandu/` 状态，不应并行启动两个 Agent。Go/React 变更需要重新构建并重启，当前独立 React Vite 代理不支持完整管理页鉴权。
+
+运行 Go 测试前先停止开发 Agent，避免真实组件用例占用同样的资源端口：
 
 ```bash
 make check

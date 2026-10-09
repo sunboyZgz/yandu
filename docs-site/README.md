@@ -2,6 +2,8 @@
 
 独立的中文使用手册，采用 VitePress 1.6.4 稳定版。安装、连接、项目发布、目录映射、密码保护、维护和诊断均根据实际代码与仓库技术文档编写。
 
+工具从源码运行的使用说明在 `guide/development.md`，对应站点 `/guide/development`；它与本文件中的“文档网站开发服务器”是不同的运行入口。
+
 依赖锁定 Vue 3.5.43，并通过 npm overrides 使用 Vite 6.4.3，修复旧 Vite 开发服务器的已知问题。该版本在 Vue 插件的兼容范围内；构建、开发模式与浏览器交互均需在更新依赖后复核。[Vite 官方修复公告](https://github.com/vitejs/vite/security/advisories/GHSA-fx2h-pf6j-xcff)。
 
 ## 本地运行

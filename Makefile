@@ -1,4 +1,6 @@
-.PHONY: check test-race ui dev release integration docs-dev docs-build docs-preview
+.PHONY: check test-race ui dev dev-build dev-serve release integration docs-dev docs-build docs-preview
+DEV_BIN_DIR ?= $(CURDIR)/.local/bin
+DEV_STATE_DIR ?= $(CURDIR)/.yandu
 ui:
 	npm --prefix web ci
 	npm --prefix web run build
@@ -7,13 +9,16 @@ check: ui
 	go vet ./...
 test-race:
 	go test -race ./...
-dev: ui
+dev-build: ui
 	python3 release/fetch-components.py
-	mkdir -p .local/bin/bin
-	go build -o .local/bin/yandu ./cmd/yandu
-	cp release/artifacts/deps/caddy_2.11.4_mac_arm64/caddy .local/bin/bin/
-	cp release/artifacts/deps/frp_0.71.0_darwin_arm64/frpc .local/bin/bin/
-	.local/bin/yandu --state-dir "$(CURDIR)/.yandu" ui
+	mkdir -p "$(DEV_BIN_DIR)/bin"
+	go build -o "$(DEV_BIN_DIR)/yandu" ./cmd/yandu
+	cp release/artifacts/deps/caddy_2.11.4_mac_arm64/caddy "$(DEV_BIN_DIR)/bin/"
+	cp release/artifacts/deps/frp_0.71.0_darwin_arm64/frpc "$(DEV_BIN_DIR)/bin/"
+dev: dev-build
+	"$(DEV_BIN_DIR)/yandu" --state-dir "$(DEV_STATE_DIR)" ui
+dev-serve: dev-build
+	"$(DEV_BIN_DIR)/yandu" --state-dir "$(DEV_STATE_DIR)" serve
 release:
 	python3 release/build.py
 integration:

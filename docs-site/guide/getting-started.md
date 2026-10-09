@@ -1,11 +1,19 @@
 ---
 title: 快速开始
-description: 按顺序安装云端与 Windows 客户端，导入连接包，发布并验证第一张图片。
+description: 选择源码开发模式或 Windows 安装包，准备两端连接并发布第一张图片。
 ---
 
 # 快速开始
 
-目标是让 `https://example.com/blog/xxx/photo.png` 读取到 `D:/oss/blog/xxx/photo.png`，同时保留云端 `/blog` 的页面行为。
+## 选择运行方式
+
+| 运行方式 | 从哪里开始 |
+| --- | --- |
+| 当前 macOS 从源码使用工具 | [开发模式使用](./development.md)：`make dev`，或使用 `make dev-serve` 前台调试；素材填写 macOS 绝对路径 |
+| Windows 安装包部署 | 继续阅读本页的安装步骤 |
+| Windows / Linux 从源码运行 | [其他平台源码步骤](./development.md#其他平台从源码启动) |
+
+以下流程面向 Windows 安装包。目标是让 `https://example.com/blog/xxx/photo.png` 读取到 `D:/oss/blog/xxx/photo.png`，同时保留云端 `/blog` 的页面行为。
 
 ## 开始前
 
@@ -17,8 +25,8 @@ description: 按顺序安装云端与 Windows 客户端，导入连接包，发�
 - 一个只存放允许发布素材的本地目录。
 - [Windows 与 Linux 发布包](../downloads.md)。安装最终客户端不需要 Go、Node.js 或 Python。
 
-::: tip 只想在当前 macOS 上体验界面
-在源码目录执行 `make dev`。它使用仓库内 `.yandu/` 保存开发状态。没有连接包时仍可打开管理页，但不会产生公网资源入口。详见 [开发运行](../reference/development.md)。
+::: tip 使用源码时
+[开发模式使用](./development.md) 提供启动、配对、macOS 目录示例、CLI 项目操作、代码更新与进程停止的完整流程。实际项目操作同样需要你自己的云端连接包。
 :::
 
 ## 1. 准备云端网站

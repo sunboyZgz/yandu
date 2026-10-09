@@ -39,6 +39,10 @@ make dev
 
 管理监听：`127.0.0.1:18765`。通过 `yandu ui` 打开页面；裸地址没有授权会话时会显示本机启动提示。票据在 URL fragment 中传递并立即删除，不进入 HTTP 请求或访问日志。
 
+前台调试使用 `make dev-serve`，仅构建使用 `make dev-build`。已有后台 Agent 时应先停止该进程，再进入前台调试或加载新编译的代码；当前独立 React Vite 页面不能完成管理 API 的鉴权。
+
+配对、macOS 素材目录、项目操作与重启的完整流程见 [开发模式使用](docs-site/guide/development.md)。Makefile 默认程序与状态目录分别为 `.local/bin/`、`.yandu/`，也可通过 `DEV_BIN_DIR` / `DEV_STATE_DIR` 覆盖；Agent 的监听端口仍固定。
+
 ## 部署
 
 完整包位于 `release/artifacts/`：

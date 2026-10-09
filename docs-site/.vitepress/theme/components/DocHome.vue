@@ -4,7 +4,7 @@ import { withBase } from 'vitepress'
 const request = ref<'resource' | 'page'>('resource')
 const path = computed(() => request.value === 'resource' ? '/blog/xxx/photo.png' : '/blog')
 const links = [
-  { name: '第一次使用', text: '安装两端、导入连接包，让第一张图片可访问。', link: '/guide/getting-started', icon: 'start', meta: '从这里开始' },
+  { name: '第一次使用', text: '选择源码或安装包，配对两端并发布第一张图片。', link: '/guide/getting-started', icon: 'start', meta: '从这里开始' },
   { name: '管理资源项目', text: '选定目录和资源范围，保存草稿后确认应用。', link: '/guide/projects', icon: 'folder', meta: '项目与发布' },
   { name: '排查连接问题', text: '根据实际状态检查目录、隧道和网站入口。', link: '/guide/troubleshooting', icon: 'diagnose', meta: '状态与诊断' },
 ]
@@ -21,6 +21,7 @@ const links = [
           <a class="docs-button primary" :href="withBase('/guide/getting-started')">开始使用 <span aria-hidden="true">↗</span></a>
           <a class="docs-button secondary" :href="withBase('/downloads')">下载验证版</a>
         </div>
+        <a class="home-development-link" :href="withBase('/guide/development')">从源码运行？查看开发模式使用 <span aria-hidden="true">↗</span></a>
         <div class="hero-note"><span class="version-label">v0.1.0</span><span>验证版本 · 支持范围与实测结果见文档</span></div>
       </div>
 
@@ -62,7 +63,7 @@ const links = [
       <div><span class="docs-eyebrow">第一次接入</span><h2 id="first-title">连接两端，再发布第一个项目。</h2><p>每一步都有检查结果，保存草稿不会公开资源。</p></div>
       <ol class="first-step-list">
         <li><span>1</span><a :href="withBase('/guide/cloud')"><strong>准备云端</strong><small>接入现有 Nginx 网站</small></a></li>
-        <li><span>2</span><a :href="withBase('/guide/windows')"><strong>安装客户端</strong><small>建立本地后台服务</small></a></li>
+        <li><span>2</span><a :href="withBase('/guide/getting-started#选择运行方式')"><strong>准备本机</strong><small>安装包或源码启动</small></a></li>
         <li><span>3</span><a :href="withBase('/guide/connection')"><strong>导入连接包</strong><small>确认站点和服务器指纹</small></a></li>
         <li><span>4</span><a :href="withBase('/guide/projects')"><strong>确认并应用</strong><small>验证实际资源响应</small></a></li>
       </ol>

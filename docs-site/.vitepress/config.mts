@@ -28,7 +28,8 @@ export default defineConfig({
     siteTitle: '檐渡',
     skipToContentLabel: '跳至正文',
     nav: [
-      { text: '使用指南', link: '/guide/getting-started', activeMatch: '^/guide/' },
+      { text: '使用指南', link: '/guide/getting-started', activeMatch: '^/guide/(?!development)' },
+      { text: '开发模式', link: '/guide/development' },
       { text: '参考资料', link: '/reference/cli', activeMatch: '^/reference/' },
       { text: '下载', link: '/downloads' },
       { text: 'v0.1.0', items: [
@@ -40,6 +41,7 @@ export default defineConfig({
       { text: '开始使用', items: [
         { text: '认识檐渡', link: '/guide/introduction' },
         { text: '快速开始', link: '/guide/getting-started' },
+        { text: '开发模式使用', link: '/guide/development' },
         { text: '准备云端网站', link: '/guide/cloud' },
         { text: '安装 Windows 客户端', link: '/guide/windows' },
         { text: '导入连接包', link: '/guide/connection' },

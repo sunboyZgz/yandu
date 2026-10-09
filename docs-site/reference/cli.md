@@ -7,6 +7,10 @@ description: 查看檐渡启动、诊断、连接、项目与配置操作的实�
 
 CLI 与管理页使用同一套服务逻辑。本机 Agent 需要先运行；Windows 日常可通过安装后的快捷方式打开。
 
+::: tip 从源码运行时
+下文的 `yandu` 表示安装后可在 PATH 中找到的程序。开发模式应使用 `.local/bin/yandu --state-dir "$PWD/.yandu"` 作为命令前缀，并在项目根目录执行，详见 [开发模式使用](../guide/development.md)。
+:::
+
 ## 打开与诊断
 
 ```powershell
