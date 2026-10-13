@@ -1,15 +1,37 @@
 # 檐渡 · Yandu
 
-把本地素材按指定路径接入现有网站。React 管理界面只在本机运行；Windows Caddy 读取磁盘，frp 建立经过证书验证的隧道，受限 SSH 助手自动维护云端 Nginx 的资源入口。
+通用本地应用存储：文件保存在没有公网 IP 的本机，业务服务器经私有 TLS 隧道按需读写。支持虚拟目录、Tus 续传、版本、回收站、项目凭证和媒体任务；原有网站只读映射继续兼容。
 
 ```text
 https://example.com/blog                     → 原云端网站
 https://example.com/blog/xxx/中文%20a.png     → D:/oss/blog/xxx/中文 a.png
 ```
 
-项目从原目录的《檐渡_Yandu_落地实施方案_v0.1.md》实现。当前版本为 **0.1.0 验证版本**。源码、管理界面、两端程序和完整组件包均可构建；Windows 真机服务、Ubuntu 安装和真实公网的验收范围见 [测试报告](docs/TEST_REPORT.md)。未提供服务器和域名的情况下，不会配置或发布到你的真实云端。
+当前为 **v0.2 开发与验证版本**，目标平台是 macOS 14+ Apple Silicon、Windows 11 x64，云端 Ubuntu 24.04 x64。macOS 已运行原生 SFTPGo、HEIC/媒体与流式链路；Windows 真机、安装身份/生命周期和 Ubuntu 部署尚未完成验收，不能将交叉构建称为正式双平台验收。
 
-## 当前功能
+新增入口与文档：
+
+- [双平台存储开发、API 与 SDK](docs/STORAGE.md)
+- [本机原生组件包与安装](docs/STORAGE_DEPLOYMENT.md)
+- [Linux 云端服务器启动](docs/CLOUD_STARTUP.md)
+- [一致性备份、恢复与迁移](docs/STORAGE_MAINTENANCE.md)
+- [v0.2 实测结果与发布门槛](docs/STORAGE_VERIFICATION.md)
+- [依赖检测与私有工具路径](docs/DEPENDENCY_TOOLS.md)
+- [默认端口与监听配置](docs/PORTS.md)
+
+```bash
+python3 scripts/storage-dev.py --no-media  # 文件存储；完整媒体启动时去掉 --no-media
+```
+
+开发状态使用独立 `.yandu-storage-dev`，管理页 `127.0.0.1:18765`，存储 API `18770`，内部 SFTPGo `18771`。生成式服务端 SDK 在 `sdk/typescript`，业务会话代理示例在 `examples/storage-business`。完整客户端原生包使用 `release/build-native-storage.py`；传统 `release/build.py` 包不包含存储原生组件。
+
+一键入口先验证 PATH 中已有工具，再检查 `tools.json` 路径和私有候选，只补齐缺失依赖并记录绝对路径、版本及 SHA256。不会修改系统 PATH 或安装全局 npm 包；已有正确组件和匹配锁文件的 npm 依赖会复用。完整包保留离线候选，源码缺少原生组件时才需要相应构建工具。
+
+云端安装/升级提供 `sudo yandu list`、`sudo yandu disks`、`sudo yandu list --json`：通过独立只读监控凭证查看本机项目、容量及去重后的受管磁盘/APFS 容器。旧部署需更新两端程序和监控连接包，离线快照明确标注采样时间。步骤见[云端命令行与容量监控](docs-site/guide/cloud-monitoring.md)。
+
+项目级 MP4 压缩支持固定字节上限、上传时明确的超限策略、原件完整保留、精确任务查询和实测产物摘要；用法见[媒体指南](docs-site/guide/media.md)，实际结果与待验收项见[压缩验收记录](docs/MEDIA_ACCEPTANCE.md)。
+
+## 兼容的只读网站映射
 
 - 中文本机管理页：总览、项目、目录与文件、连接、操作记录。
 - 多项目、多资源前缀、草稿、明确发布确认、停用、删除映射、独立释放旧路径。
@@ -24,7 +46,7 @@ https://example.com/blog/xxx/中文%20a.png     → D:/oss/blog/xxx/中文 a.png
 
 ## 在当前 macOS 上运行
 
-开发环境：Go 1.26.2、Node.js 22、Python 3（仅构建/打包用）。运行最终客户端不需要这些开发工具。
+开发环境：Go 1.26.2、Python 3；Node.js 22.23.1/npm 优先复用，缺少时准备 Yandu 私有副本。运行安装包不需要额外安装开发工具。
 
 ```bash
 make dev
@@ -41,11 +63,11 @@ make dev
 
 前台调试使用 `make dev-serve`，仅构建使用 `make dev-build`。已有后台 Agent 时应先停止该进程，再进入前台调试或加载新编译的代码；当前独立 React Vite 页面不能完成管理 API 的鉴权。
 
-配对、macOS 素材目录、项目操作与重启的完整流程见 [开发模式使用](docs-site/guide/development.md)。Makefile 默认程序与状态目录分别为 `.local/bin/`、`.yandu/`，也可通过 `DEV_BIN_DIR` / `DEV_STATE_DIR` 覆盖；Agent 的监听端口仍固定。
+配对、macOS 素材目录、项目操作与重启的完整流程见 [只读映射开发](docs-site/guide/readonly-development.md)。Makefile 默认程序与状态目录分别为 `.local/bin/`、`.yandu/`，也可通过 `DEV_BIN_DIR` / `DEV_STATE_DIR` 覆盖；Agent 的监听端口仍固定。
 
 ## Windows 原生开发模式
 
-Windows x64 安装 Go 1.26.2、Node.js 22/npm 和 Python 3.10+ 后，在源码根目录的普通 PowerShell 中执行：
+Windows x64 安装 Go 1.26.2 和 Python 3.10+ 后，在源码根目录的普通 PowerShell 中执行；Node.js 22.23.1/npm 优先复用，缺少时自动准备：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
@@ -53,7 +75,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 
 脚本自动构建 React、校验并准备 Windows Caddy/frpc、编译 `yandu.exe`，以前台进程启动并打开管理页；按 Ctrl+C 停止。它使用当前用户和项目 `.yandu/` 状态，不注册系统服务。已占用的端口会明确报错，不自动停止安装版。
 
-`-Mode build` 仅构建；第二个终端可用 `-Mode ui`、`status` 或 `doctor`。完整步骤见 [Windows 开发模式](docs-site/guide/development-windows.md)。Windows 程序已交叉构建，启动逻辑与脚本入口经过验证；当前 macOS 环境不代表已完成 Windows 真机运行验收。
+`-Mode build` 仅构建；第二个终端可用 `-Mode ui`、`status` 或 `doctor`。完整步骤见 [只读映射 Windows 开发](docs-site/guide/readonly-development-windows.md)。Windows 程序已交叉构建，启动逻辑与脚本入口经过验证；当前 macOS 环境不代表已完成 Windows 真机运行验收。
 
 通用源码入口为 `python3 scripts/dev.py run`，支持 Windows x64、Linux x64、macOS ARM64；`build --target windows-amd64` 可交叉构建 Windows 开发程序。构建器只准备选定平台的资产，Go 编译与组件安装使用临时文件，避免在 Unix 上截断运行中的二进制。
 
@@ -65,7 +87,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
 - `yandu-0.1.0-linux-amd64.tar.gz`：Agent CLI、云端助手、frps/frpc、Bash 脚本。
 - `yandu-0.1.0-darwin-arm64.tar.gz`：当前开发机的本地运行包。
 
-生产目标基线：Windows 11 x64 + Ubuntu 24.04 LTS x64 + 宿主机 Nginx。macOS 是开发与验证环境。包内均含依赖锁、第三方许可及 SHA256SUMS；这次构建没有 Authenticode、发行签名或公证。
+下列 v0.1 只读包的部署基线为 Windows 11 x64 + Ubuntu 24.04 x64 + Nginx。v0.2 通用存储的双平台安装见上面的新部署文档。包内均含依赖锁、第三方许可及 SHA256SUMS；这次构建没有 Authenticode、发行签名或公证。
 
 先安装云端，再将加密连接包安全交付给 Windows：
 

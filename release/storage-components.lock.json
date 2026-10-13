@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "sftpgo": {
+    "version": "2.7.6",
+    "module": "github.com/drakkan/sftpgo/v2",
+    "moduleZipSHA256": "b835e9b288a8e9b23324a8d80c94fa2b5adb762ba11476fdb19083cd4b4422a1",
+    "windowsPortable": {
+      "url": "https://github.com/drakkan/sftpgo/releases/download/v2.7.6/sftpgo_v2.7.6_windows_portable.zip",
+      "sha256": "af3994bb690962c7575858aee368a4c1d6fd4748b35770bb0773eb06408d504d"
+    }
+  },
+  "libheif": {
+    "version": "1.23.6",
+    "url": "https://github.com/strukturag/libheif/archive/refs/tags/v1.23.6.tar.gz",
+    "sha256": "c9a00b0452f5c16d72ef71e5e40c0e90fbe2ad37148d27a1b2f9bb21546f5f03",
+    "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_FIND_FRAMEWORK=NEVER",
+      "-DENABLE_PLUGIN_LOADING=OFF",
+      "-DBUILD_TESTING=OFF",
+      "-DWITH_EXAMPLES=ON",
+      "-DWITH_LIBDE265=ON",
+      "-DWITH_LIBDE265_PLUGIN=OFF",
+      "-DWITH_X265=OFF",
+      "-DWITH_X264=OFF",
+      "-DWITH_OpenH264_DECODER=OFF",
+      "-DWITH_AOM_DECODER=OFF",
+      "-DWITH_AOM_ENCODER=OFF",
+      "-DWITH_DAV1D=OFF",
+      "-DWITH_RAV1E=OFF",
+      "-DWITH_SvtEnc=OFF",
+      "-DWITH_FFMPEG_DECODER=OFF",
+      "-DWITH_JPEG_DECODER=OFF",
+      "-DWITH_JPEG_ENCODER=OFF",
+      "-DWITH_OpenJPEG_DECODER=OFF",
+      "-DWITH_OpenJPEG_ENCODER=OFF",
+      "-DWITH_LIBSHARPYUV=OFF",
+      "-DWITH_GDK_PIXBUF=OFF",
+      "-DCMAKE_DISABLE_FIND_PACKAGE_TIFF=TRUE",
+      "-DCMAKE_DISABLE_FIND_PACKAGE_WEBP=TRUE",
+      "-DCMAKE_DISABLE_FIND_PACKAGE_JPEG=TRUE"
+    ]
+  },
+  "nativeLibraries": {
+    "libde265": "1.0.16",
+    "libpng": "1.6.58"
+  },
+  "vcpkg": {
+    "baseline": "e456309491fd875487bf02b8a0dca76c1b1b00cc"
+  },
+  "node": {
+    "version": "22.23.1",
+    "darwin-arm64": {
+      "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz",
+      "sha256": "ef28d8fab2c0e4314522d4bb1b7173270aa3937e93b92cb7de79c112ac1fa953"
+    },
+    "windows-amd64": {
+      "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-win-x64.zip",
+      "sha256": "7df0bc9375723f4a86b3aa1b7cc73342423d9677a8df4538aca31a049e309c29"
+    }
+  },
+  "ffmpeg": {
+    "version": "9.0.2",
+    "source": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "windows-amd64": {
+      "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.7z",
+      "sha256": "4705843ccaaf54257c16ad90f3e952ece33c17df964ecf7bfdbb0f49c7171077"
+    },
+    "sourceModule": {
+      "module": "github.com/FFmpeg/FFmpeg",
+      "ref": "n9.0.2",
+      "revision": "946fcce07b6dcd0331c8cc609192aeff5e1924f8",
+      "moduleVersion": "v0.0.0-20260917231950-946fcce07b6d",
+      "zipSHA256": "b204c46b5070896fdac68d906e702ec47719e996cd14efd2efbad32ab7d0c0dc"
+    },
+    "configure": [
+      "--enable-gpl",
+      "--enable-libx264",
+      "--disable-autodetect",
+      "--disable-doc",
+      "--disable-debug",
+      "--disable-ffplay",
+      "--disable-network"
+    ]
+  },
+  "media": {
+    "sharp": "0.35.5",
+    "exiftool-vendored": "39.0.1",
+    "exiftool": "13.59.3",
+    "lockfile": "media/package-lock.json"
+  },
+  "generators": {
+    "oapi-codegen": "2.5.1",
+    "openapi-generator": "7.17.0",
+    "jarSHA256": "25d6bd8273dd2be99979d544b62ea43f0ce1975f1aa582678b5093d1e7fcfce8"
+  },
+  "x264": {
+    "version": "r3108",
+    "source": "https://code.videolan.org/videolan/x264.git",
+    "revision": "31e19f92f00c7003fa115047ce50978bc98c3a0d"
+  },
+  "macOSDeploymentTarget": "14.0",
+  "nativeSources": {
+    "libde265": {
+      "module": "github.com/strukturag/libde265",
+      "moduleVersion": "v1.0.16",
+      "zipSHA256": "e0d7ae6f39fdb274d77ff472a423e9da40ab1be30827858b80e3a68ef7a52712"
+    },
+    "libpng": {
+      "module": "github.com/pnggroup/libpng",
+      "moduleVersion": "v1.6.58",
+      "zipSHA256": "7886032c08fe95b694fa22b83d8fc7834670e63870305fe08c94e505d7cfe979"
+    }
+  }
+}

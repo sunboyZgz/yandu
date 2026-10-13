@@ -1,14 +1,14 @@
 {
   "name": "yandu-docs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/prepare-downloads.mjs",
-    "dev": "vitepress dev . --host 127.0.0.1 --port 5174",
-    "prebuild": "node scripts/prepare-downloads.mjs",
+    "predev": "node scripts/prepare-downloads.mjs && node scripts/prepare-reference.mjs",
+    "dev": "vitepress dev . --host 127.0.0.1",
+    "prebuild": "node scripts/prepare-downloads.mjs && node scripts/prepare-reference.mjs",
     "build": "vitepress build .",
-    "preview": "vitepress preview . --host 127.0.0.1 --port 5174",
+    "preview": "node scripts/preview.mjs",
     "check": "node scripts/check-site.mjs"
   },
   "devDependencies": {

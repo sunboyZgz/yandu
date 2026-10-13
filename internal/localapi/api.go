@@ -188,6 +188,10 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.FileServer(http.FS(sub)).ServeHTTP(w, r)
 }
 func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/storage/") && a.Engine.Storage != nil {
+		a.Engine.Storage.Manager(w, r)
+		return
+	}
 	s, err := a.Engine.Store.Read()
 	if err != nil {
 		failure(w, err)
@@ -204,12 +208,18 @@ func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 		sites := []model.Site{}
 		device := ""
 		fp := ""
+		var storageTunnel *model.StorageTunnel
 		if s.Profile != nil {
 			sites = s.Profile.Sites
 			device = s.Profile.DeviceID
 			fp = s.Profile.SSHFingerprint
+			if s.Profile.Storage != nil {
+				public := *s.Profile.Storage
+				public.MonitorToken = ""
+				storageTunnel = &public
+			}
 		}
-		send(w, 200, map[string]any{"version": model.Version, "revision": s.Revision, "appliedRevision": s.AppliedRevision, "projects": projects, "sites": sites, "roots": s.Roots, "operations": s.Operations, "reserved": s.Reserved, "cloudRevisions": s.CloudRevisions, "deviceId": device, "sshFingerprint": fp, "components": map[string]any{"agent": true, "fileService": a.Engine.Caddy.Alive(), "tunnel": a.Engine.FRPC.Alive(), "connection": s.Profile != nil}})
+		send(w, 200, map[string]any{"version": model.Version, "revision": s.Revision, "appliedRevision": s.AppliedRevision, "projects": projects, "sites": sites, "roots": s.Roots, "operations": s.Operations, "reserved": s.Reserved, "cloudRevisions": s.CloudRevisions, "deviceId": device, "sshFingerprint": fp, "storageTunnel": storageTunnel, "components": map[string]any{"agent": true, "fileService": a.Engine.Caddy.Alive(), "tunnel": a.Engine.FRPC.Alive(), "connection": s.Profile != nil}})
 	case path == "/projects" && r.Method == "GET":
 		out := []model.Project{}
 		for _, p := range s.Projects {
@@ -380,6 +390,14 @@ func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	case path == "/connection/test" && r.Method == "POST":
 		if s.Profile == nil {
 			failure(w, model.Err("CONNECTION_REQUIRED", "未导入连接包"))
+			return
+		}
+		if len(s.Profile.Sites) == 0 && s.Profile.Storage != nil {
+			if err = a.Engine.StorageTunnelStatus(r.Context()); err != nil {
+				failure(w, model.Err("TUNNEL_UNAVAILABLE", err.Error()))
+			} else {
+				send(w, 200, map[string]bool{"storageTunnelRegistered": true})
+			}
 			return
 		}
 		receipt, err := a.Engine.Call(r.Context(), *s.Profile, structRequest(s.Profile.Sites[0].ID))

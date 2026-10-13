@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yandu 业务接入示例</title>
+<style>body{font:16px system-ui;max-width:900px;margin:50px auto;padding:24px;color:#16372d}button,input,select{font:inherit;padding:8px;margin:8px}li{padding:10px;border-bottom:1px solid #ddd}code{overflow-wrap:anywhere}pre{white-space:pre-wrap}</style>
+<h1>应用文件</h1><p>浏览器通过业务会话上传。项目密钥仅保留在服务器，原件保存和压缩完成分别显示。</p>
+<form action="/login" method="post"><input name="password" type="password" placeholder="业务示例密码" required><button>登录</button></form>
+<p id="policy">登录后查询项目压缩设置</p>
+<label><input id="mp4" type="checkbox">上传后处理 MP4</label>
+<label>超限策略<select id="overflow"><option value="reject">失败，不裁剪</option><option value="keep-start">我允许保留开头、裁掉尾部</option></select></label>
+<input id="file" type="file"><button id="upload">上传原件</button><button id="refresh">刷新文件</button>
+<p id="status" role="status"></p><p id="media-status" role="status"></p><ul id="files"></ul><section id="jobs"></section>
+<script src="/tus.js"></script><script>
+let base='',capabilities;
+const status=document.querySelector('#status'),mediaStatus=document.querySelector('#media-status');
+const pause=()=>new Promise(resolve=>setTimeout(resolve,1000));
+async function json(url,options){const r=await fetch(url,options);const data=await r.json();if(!r.ok)throw new Error(data.error?.message||'请求失败');return data;}
+async function list(){
+ const p=await json('/project');base='/storage/v1/projects/'+p.projectId;
+ const [result,cap]=await Promise.all([json(base+'/entries'),json('/api/media')]);capabilities=cap;
+ const limit=cap.outputConstraintCapabilities?.presets?.['mp4-720-v1']?.configuredMaxFileBytes;
+ document.querySelector('#policy').textContent='项目 MP4 上限：'+(limit?limit.toLocaleString()+' 字节':'未配置，保留完整压缩结果');
+ const ul=document.querySelector('#files');ul.replaceChildren();
+ for(const item of result.items){const li=document.createElement('li');li.textContent=item.name+' ';if(item.kind==='file'){const a=document.createElement('a');a.href=base+'/objects/'+item.id+'/content';a.textContent='下载原件';a.download=item.name;li.append(a);}ul.append(li);}
+}
+async function waitJob(ref){
+ let job;do{job=await json('/api/jobs/'+encodeURIComponent(ref.id));mediaStatus.textContent='压缩：'+job.state; if(['queued','running'].includes(job.state))await pause();}while(['queued','running'].includes(job.state));
+ const section=document.createElement('article'),info=document.createElement('pre');
+ info.textContent=JSON.stringify(job,null,2);section.append(info);
+ if(job.state==='succeeded'&&job.result){const a=document.createElement('a');a.href=base+'/derivatives/'+job.result.derivativeId;a.download='video.mp4';a.textContent='下载并核验压缩 MP4';section.append(a);}
+ document.querySelector('#jobs').append(section);
+ if(job.state!=='succeeded')throw new Error(job.error?.code+': '+job.error?.message);
+}
+document.querySelector('#refresh').onclick=()=>list().catch(e=>status.textContent=e.message);
+document.querySelector('#upload').onclick=async()=>{
+ const button=document.querySelector('#upload');button.disabled=true;mediaStatus.textContent='';
+ try{
+  await list();const file=document.querySelector('#file').files[0];if(!file)return;
+  const mp4=document.querySelector('#mp4').checked,onOverflow=document.querySelector('#overflow').value;
+  const limit=capabilities.outputConstraintCapabilities?.presets?.['mp4-720-v1']?.configuredMaxFileBytes;
+  if(mp4&&!capabilities.mediaReady)throw new Error('媒体组件未就绪');
+  if(mp4&&onOverflow==='keep-start'&&!limit)throw new Error('先在 Yandu 管理页配置项目 MP4 上限');
+  const processing={presets:mp4?['mp4-720-v1']:[],...(mp4&&limit?{outputConstraints:{'mp4-720-v1':{onOverflow}}}:{})};
+  const signature=JSON.stringify([base,file.name,file.size,file.lastModified,processing]);
+  const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature)));
+  const cacheKey='yandu-example-upload:'+Array.from(bytes,v=>v.toString(16).padStart(2,'0')).join('');
+  const key=localStorage.getItem(cacheKey)||crypto.randomUUID();localStorage.setItem(cacheKey,key);
+  const intent=await json(base+'/uploads',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key},body:JSON.stringify({name:file.name,length:file.size,processing})});
+  let original=await json(base+'/uploads/'+intent.id);
+  if(original.state!=='READY')await new Promise((resolve,reject)=>{
+   const transfer=new tus.Upload(file,{endpoint:base+'/tus/',metadata:{intentId:intent.id},chunkSize:4*1024*1024,retryDelays:[0,1000,3000,5000],removeFingerprintOnSuccess:true,onError:reject,onProgress:(sent,total)=>status.textContent='原件上传：'+Math.round(sent/Math.max(total,1)*100)+'%',onSuccess:resolve});
+   transfer.findPreviousUploads().then(previous=>{const match=previous.find(v=>v.metadata?.intentId===intent.id);if(match)transfer.resumeFromPreviousUpload(match);transfer.start();}).catch(reject);
+  });
+  do{original=await json(base+'/uploads/'+intent.id);status.textContent='原件：'+original.state;if(['failed','cancelled'].includes(original.state))throw new Error(original.error||'原件入库失败');if(original.state!=='READY')await pause();}while(original.state!=='READY');
+  status.textContent='原件已完整保存；媒体任务另行查询';await list();
+  for(const ref of original.jobs||[])await waitJob(ref);
+  localStorage.removeItem(cacheKey);
+ }catch(e){mediaStatus.textContent=e.message;}finally{button.disabled=false;}
+};
+list().catch(e=>status.textContent=e.message);
+</script></html>

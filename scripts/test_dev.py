@@ -22,6 +22,29 @@ class LauncherTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
 
+    def test_existing_matching_npm_dependencies_are_reused(self):
+        directory=self.root/'web';(directory/'node_modules').mkdir(parents=True)
+        packages={'node_modules/typescript':{'version':'5.9.3','integrity':'sha512-fixture'}}
+        (directory/'package-lock.json').write_text(json.dumps({'packages':{'':{'name':'fixture'},**packages}}))
+        (directory/'node_modules/.package-lock.json').write_text(json.dumps({'packages':packages}))
+        node=self.root/'node'
+        with patch.object(dev,'execute') as execute,patch.object(dev.subprocess,'run',return_value=subprocess.CompletedProcess([],0)):
+            dev.ensure_npm(self.root,'web',node)
+        execute.assert_not_called()
+        self.assertTrue((self.root/'.local/npm-stamps/web.sha256').is_file())
+
+    def test_changed_npm_lock_installs_only_project_dependencies(self):
+        directory=self.root/'media';(directory/'node_modules').mkdir(parents=True)
+        (directory/'package-lock.json').write_text(json.dumps({'packages':{'node_modules/sharp':{'version':'0.35.5','integrity':'new'}}}))
+        (directory/'node_modules/.package-lock.json').write_text(json.dumps({'packages':{'node_modules/sharp':{'version':'old','integrity':'old'}}}))
+        node=self.root/'Node 中文/bin/node';entry=node.parent.parent/'lib/node_modules/npm/bin/npm-cli.js';entry.parent.mkdir(parents=True);entry.write_text('fixture')
+        with patch.object(dev,'execute') as execute:
+            dev.ensure_npm(self.root,'media',node)
+        self.assertEqual(execute.call_count,1)
+        args=execute.call_args.args[0]
+        self.assertEqual(args,[str(node),str(entry),'--prefix',str(directory),'ci'])
+        self.assertNotIn('-g',args)
+
     def test_windows_plan_has_exe_and_only_windows_components(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):

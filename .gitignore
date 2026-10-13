@@ -1,6 +1,7 @@
 node_modules/
 web/dist/
 .yandu/
+.yandu-storage-dev/
 .local/
 release/artifacts/
 *.db*
@@ -18,3 +19,5 @@ docs-site/.vitepress/cache/
 docs-site/.vitepress/dist/
 docs-site/.vitepress/generated/
 docs-site/public/downloads/
+sdk/typescript/dist/
+docs-site/public/api/

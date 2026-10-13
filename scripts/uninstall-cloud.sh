@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 [[ $EUID == 0 ]] || { echo '需要 sudo';exit 1; }
-[[ -f /etc/yandu/registry.json ]] || { echo '无安装归属记录，停止卸载';exit 1; }
+[[ -f /etc/yandu/registry.json || -f /etc/yandu/storage-owner.json ]] || { echo '无安装归属记录，停止卸载';exit 1; }
+if [[ -f /etc/yandu/storage-owner.json ]];then
+ systemctl disable --now yandu-frps yandu-gateway || true
+ rm -f /etc/systemd/system/yandu-frps.service /etc/systemd/system/yandu-gateway.service
+ systemctl daemon-reload
+ rm -f /usr/local/lib/yandu/frps /usr/local/lib/yandu/yandu-cloud
+ if [[ -L /usr/local/bin/yandu && $(readlink /usr/local/bin/yandu) == /usr/local/lib/yandu/yandu-cloud ]];then rm /usr/local/bin/yandu;fi
+ echo '已卸载存储网关与隧道，保留 /etc/yandu 配对、TLS 和恢复记录。';exit 0
+fi
 echo '停止资源隧道，保留原网站、业务文件、受管拒绝路径及恢复记录。'
 systemctl disable --now yandu-frps || true
 python3 - <<'PY'
@@ -24,4 +32,5 @@ rm -f /etc/ssh/yandu_authorized_keys /etc/sudoers.d/yandu /etc/ssh/sshd_config.d
 /usr/sbin/sshd -t;systemctl reload ssh;systemctl daemon-reload
 # Preserve root-owned configuration and TLS materials for an explicit recovery/removal decision.
 rm -f /usr/local/lib/yandu/frps /usr/local/lib/yandu/yandu-cloud
+if [[ -L /usr/local/bin/yandu && $(readlink /usr/local/bin/yandu) == /usr/local/lib/yandu/yandu-cloud ]];then rm /usr/local/bin/yandu;fi
 echo '资源服务已卸载；/etc/yandu 和网站 include 保留，以维持停用资源 404。'

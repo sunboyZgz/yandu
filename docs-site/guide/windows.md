@@ -5,7 +5,15 @@ description: 安装后台服务、导入连接包，并为素材目录授予适�
 
 # 安装 Windows 客户端
 
+本页适用于 `readonly_mapping`；应用存储请使用[通用存储指南](/guide/getting-started)。
+
 下载并解压 [Windows x64 发布包](../downloads.md)。最终客户端自带程序、Caddy 和 frpc，无需安装 Node.js、Go 或 Docker Desktop。
+
+## 默认端口与配置
+
+管理页在 `127.0.0.1:18765`；只读资源、鉴权、frpc 管理及 Caddy 管理分别使用回环 `18766`、`18767`、`18768`、`18769`。当前 Agent 还提供回环 `18770` 的存储 API，只读安装不启动 `18771` 的 SFTPGo。
+
+本机端口固定，不支持启动参数更改，换状态目录也不能并行运行。修改源码的位置见[本机端口配置](./ports.md#本机开发与安装)。文档站默认回环 `5174`，通过 `DOCS_PORT` 配置；云端 `7000`、`18080` 及网站/SSH 端口见[只读云端端口](./ports.md#兼容只读网站映射)。
 
 ## 安装程序
 
@@ -55,6 +63,4 @@ yandu ui
 
 关闭浏览器不会停止服务。正常安装的服务随系统启动，打开管理页不要求云端此刻在线。
 
-::: info 目标环境验收
-安装脚本和 Windows 程序已完成构建；SCM、ACL、开机恢复等行为仍需 Windows 真机验收。请结合 [验证报告](../reference/verification.md) 使用当前验证版。
-:::
+平台验证与发布状态见[v0.2 验证记录](/reference/storage-verification)。

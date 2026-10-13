@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/crypto/ssh"
 	"net"
+	"net/url"
 	"strings"
 	"yandu/internal/model"
 	"yandu/internal/pathpolicy"
@@ -76,17 +77,37 @@ func Decrypt(b []byte, password string) (model.Profile, error) {
 	return p, Validate(p)
 }
 func Validate(p model.Profile) error {
-	if p.SchemaVersion != 1 || !pathpolicy.Identifier(p.DeviceID) || p.ServerPort < 1 || p.ServerPort > 65535 || len(p.TunnelToken) < 32 || !pathpolicy.Domain(p.TLSName) || !strings.HasPrefix(p.SSHFingerprint, "SHA256:") {
+	if (p.SchemaVersion != 1 && p.SchemaVersion != 2) || !pathpolicy.Identifier(p.DeviceID) || p.ServerPort < 1 || p.ServerPort > 65535 || len(p.TunnelToken) < 32 || (!pathpolicy.Domain(p.TLSName) && net.ParseIP(p.TLSName) == nil) {
 		return model.Err("INVALID_PROFILE", "连接材料不完整")
 	}
-	if _, _, e := net.SplitHostPort(p.SSHAddr); e != nil {
-		return model.Err("INVALID_PROFILE", "SSH 地址必须包含端口")
-	}
-	if p.ServerAddr == "" || strings.ContainsAny(p.ServerAddr, "\r\n\x00") || !pathpolicy.Identifier(p.SSHUser) {
+	if p.ServerAddr == "" || strings.ContainsAny(p.ServerAddr, "\r\n\x00") {
 		return model.Err("INVALID_PROFILE", "连接地址无效")
 	}
-	if _, e := ssh.ParsePrivateKey([]byte(p.SSHPrivateKey)); e != nil {
-		return model.Err("INVALID_PROFILE", "SSH 设备密钥无效")
+	if p.Storage != nil {
+		if t := p.Storage.MonitorToken; t != "" && !ValidMonitorToken(t) {
+			return model.Err("INVALID_PROFILE", "监控凭证无效")
+		}
+		if p.SchemaVersion != 2 || p.Storage.RemotePort != 19090 {
+			return model.Err("INVALID_PROFILE", "存储隧道仅允许内部端口 19090")
+		}
+		u, e := url.Parse(p.Storage.GatewayURL)
+		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return model.Err("INVALID_PROFILE", "网关地址无效")
+		}
+	}
+	if len(p.Sites) > 0 {
+		if !strings.HasPrefix(p.SSHFingerprint, "SHA256:") {
+			return model.Err("INVALID_PROFILE", "SSH 指纹无效")
+		}
+		if _, _, e := net.SplitHostPort(p.SSHAddr); e != nil {
+			return model.Err("INVALID_PROFILE", "SSH 地址必须包含端口")
+		}
+		if p.ServerAddr == "" || strings.ContainsAny(p.ServerAddr, "\r\n\x00") || !pathpolicy.Identifier(p.SSHUser) {
+			return model.Err("INVALID_PROFILE", "连接地址无效")
+		}
+		if _, e := ssh.ParsePrivateKey([]byte(p.SSHPrivateKey)); e != nil {
+			return model.Err("INVALID_PROFILE", "SSH 设备密钥无效")
+		}
 	}
 	block, _ := pem.Decode([]byte(p.TunnelCA))
 	if block == nil {
@@ -96,7 +117,7 @@ func Validate(p model.Profile) error {
 	if e != nil || !cert.IsCA {
 		return model.Err("INVALID_PROFILE", "隧道 CA 无效")
 	}
-	if len(p.Sites) < 1 || len(p.Sites) > 20 {
+	if (len(p.Sites) < 1 && p.Storage == nil) || len(p.Sites) > 20 {
 		return model.Err("INVALID_PROFILE", "站点数量无效")
 	}
 	seen := map[string]bool{}
@@ -112,4 +133,17 @@ func Validate(p model.Profile) error {
 		}
 	}
 	return nil
+}
+
+// Monitor tokens authorize only device inventory, never project file operations.
+func ValidMonitorToken(t string) bool {
+	if len(t) != 67 || !strings.HasPrefix(t, "ym_") {
+		return false
+	}
+	for _, c := range t[3:] {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }

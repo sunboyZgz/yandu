@@ -7,6 +7,7 @@ $Install=Get-Content $Record -Raw | ConvertFrom-Json
 if($Install.service -ne 'Yandu' -or [IO.Path]::GetFullPath($Install.installPath) -ne [IO.Path]::GetFullPath("$env:ProgramFiles\Yandu")){throw '安装归属记录无效，拒绝删除目录'}
 Stop-Service Yandu -ErrorAction SilentlyContinue
 & sc.exe delete Yandu | Out-Null
+if($Install.schemaVersion -eq 2){Stop-Service YanduSFTPGo -ErrorAction SilentlyContinue;& sc.exe delete YanduSFTPGo | Out-Null}
 if($Install.pathEntryAdded){$MachinePath=[Environment]::GetEnvironmentVariable('Path','Machine');$NewPath=($MachinePath.Split(';') | Where-Object {$_ -ne $Install.installPath}) -join ';';[Environment]::SetEnvironmentVariable('Path',$NewPath,'Machine')}
 Remove-Item $Install.installPath -Recurse -Force
 $Shortcut=[Environment]::GetFolderPath('Desktop')+'\檐渡.lnk'

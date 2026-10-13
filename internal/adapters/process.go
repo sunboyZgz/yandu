@@ -23,7 +23,27 @@ type Process struct {
 	lastError string
 }
 
+var toolPaths struct {
+	sync.RWMutex
+	paths map[string]string
+}
+
+func SetToolPaths(paths map[string]string) {
+	toolPaths.Lock()
+	defer toolPaths.Unlock()
+	toolPaths.paths = map[string]string{}
+	for name, path := range paths {
+		toolPaths.paths[name] = path
+	}
+}
+
 func Binary(name string) (string, error) {
+	toolPaths.RLock()
+	configured := toolPaths.paths[name]
+	toolPaths.RUnlock()
+	if configured != "" {
+		return configured, nil
+	}
 	suffix := ""
 	if runtime.GOOS == "windows" {
 		suffix = ".exe"

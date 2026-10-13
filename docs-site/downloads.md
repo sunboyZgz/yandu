@@ -1,12 +1,12 @@
 ---
 title: 下载檐渡
-description: 下载经过 SHA-256 校验的 Windows、Linux 和 macOS 验证版组件包。
+description: 下载经过 SHA-256 校验的 v0.2 通用存储组件包并查看平台验收状态。
 outline: [2, 3]
 ---
 
 # 下载檐渡
 
-当前软件版本为 **v0.1.0 验证版**。选择与你实际安装位置对应的包：Windows 管理本地资源，Linux 接入云端网站，macOS 用于本机开发与验证。
+当前源码版本为 **v0.2.0**。以下列出实际构建且校验通过的文件。未构建的平台显示缺失；发布状态见[验证记录](/reference/storage-verification)。
 
 <ReleaseDownloads />
 
@@ -17,28 +17,28 @@ outline: [2, 3]
 Windows：
 
 ```powershell
-Get-FileHash .\yandu-0.1.0-windows-amd64.zip -Algorithm SHA256
+Get-FileHash .\yandu-0.2.0-windows-amd64.zip -Algorithm SHA256
 ```
 
 Linux：
 
 ```bash
-sha256sum yandu-0.1.0-linux-amd64.tar.gz
+sha256sum yandu-0.2.0-linux-amd64.tar.gz
 ```
 
 macOS：
 
 ```bash
-shasum -a 256 yandu-0.1.0-darwin-arm64.tar.gz
+shasum -a 256 yandu-0.2.0-darwin-arm64.tar.gz
 ```
 
-将结果与对应文件的 SHA-256 比较。包内还有各文件的 SHA256SUMS 与第三方许可。
+将结果与对应文件的 SHA-256 比较。完整存储包内的 `component-receipt.json` 包含各文件校验值，安装器会再次验证；云端包内包含 `SHA256SUMS`。两个类型都保留第三方许可。
 
 ## 版本与运行条件
 
-- Windows 目标：Windows 11 x64。客户端含 Caddy、frpc 和安装脚本。
-- 云端目标：Ubuntu 24.04 x64、宿主机 Nginx。独立服务器仍需系统包安装、DNS、HTTPS 与网络条件。
-- macOS ARM64 包用于开发与本机验证，不替代 Windows 正式支持声明。
+- Windows 目标：Windows 11 x64，使用 SCM 和独立服务身份；需在 Windows 原生构建媒体组件。
+- 云端目标：Ubuntu 24.04 x64。storage-only 无需业务域名或 Nginx，使用证书验证的私有隧道；旧只读映射仍沿用网站配置。
+- macOS 目标：macOS 14+ Apple Silicon，使用 launchd 和独立服务身份。
 - 当前没有 Authenticode、发行签名或 macOS 公证；校验和用于完整性检查，不代表发行者签名。
 
-本机实测与尚待验收的内容见 [验证报告](./reference/verification.md)。取得包后，按 [快速开始](./guide/getting-started.md) 安装。
+本机实测与尚待验收的内容见 [v0.2 验证记录](./reference/storage-verification.md)。取得包后，Linux 云端按[云端服务器启动](./guide/cloud-startup.md)部署，macOS 与 Windows 客户端按[本机安装](./guide/storage-deployment.md)部署；完整顺序见[快速开始](./guide/getting-started.md)。旧版映射操作见[只读映射快速开始](./guide/readonly-getting-started.md)。

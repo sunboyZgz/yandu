@@ -36,10 +36,11 @@ func (h handler) Execute(args []string, r <-chan svc.ChangeRequest, s chan<- svc
 		}
 	}
 }
-func Dispatch(run func(context.Context) error) (bool, error) {
+func Dispatch(run func(context.Context) error) (bool, error) { return DispatchNamed("Yandu", run) }
+func DispatchNamed(name string, run func(context.Context) error) (bool, error) {
 	in, e := svc.IsWindowsService()
 	if e != nil || !in {
 		return false, e
 	}
-	return true, svc.Run("Yandu", handler{run})
+	return true, svc.Run(name, handler{run})
 }

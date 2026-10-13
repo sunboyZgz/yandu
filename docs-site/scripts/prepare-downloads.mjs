@@ -11,17 +11,21 @@ const destination = resolve(site, 'public/downloads')
 const version = (await readFile(resolve(root, 'internal/model/model.go'), 'utf8')).match(/const Version = "([0-9.]+)"/)?.[1]
 if (!version) throw new Error('无法读取 Yandu 版本')
 const variants = [
-  { platform: 'Windows x64', role: '本地客户端', suffix: 'windows-amd64.zip', format: 'ZIP', detail: '客户端、Caddy、frpc 与 PowerShell 安装脚本' },
-  { platform: 'Linux x64', role: '云端安装包', suffix: 'linux-amd64.tar.gz', format: 'TAR.GZ', detail: 'Ubuntu 24.04 目标环境，含云端助手、frps 与安装脚本' },
-  { platform: 'macOS ARM64', role: '本机开发与验证', suffix: 'darwin-arm64.tar.gz', format: 'TAR.GZ', detail: 'Apple Silicon 开发环境，含客户端、Caddy 与 frpc' },
+  { platform: 'macOS ARM64', role: 'v0.2 完整存储组件包', folder: 'native', suffix: 'darwin-arm64.tar.gz', format: 'TAR.GZ', detail: '原生 SFTPGo、Tus、媒体处理及 launchd 安装脚本；正式身份与生命周期待验收' },
+  { platform: 'Windows x64', role: 'v0.2 完整存储组件包', folder: 'native', suffix: 'windows-amd64.zip', format: 'ZIP', detail: '由 Windows 原生构建器产出；包含 SFTPGo、HEIC 和视频组件，需 Windows 11 实测' },
+  { platform: 'Linux x64', role: 'v0.2 云端组件包', folder: '', suffix: 'linux-amd64.tar.gz', format: 'TAR.GZ', detail: '含 storage-only 网关、frps、项目与磁盘清单 CLI；Ubuntu 24.04 系统部署待验收' },
 ]
-const checksums = new Map()
-try {
-  for (const line of (await readFile(resolve(source, 'SHA256SUMS'), 'utf8')).trim().split('\n')) {
-    const match = line.match(/^([a-f0-9]{64})\s+(.+)$/)
-    if (match) checksums.set(match[2], match[1])
-  }
-} catch (error) { if (error.code !== 'ENOENT') throw error }
+const inventories = new Map()
+for (const folder of new Set(variants.map(item => item.folder))) {
+  const checksums = new Map()
+  try {
+    for (const line of (await readFile(resolve(source, folder, 'SHA256SUMS'), 'utf8')).trim().split('\n')) {
+      const match = line.match(/^([a-f0-9]{64})\s+(.+)$/)
+      if (match) checksums.set(match[2], match[1])
+    }
+  } catch (error) { if (error.code !== 'ENOENT') throw error }
+  inventories.set(folder, checksums)
+}
 
 // This is a managed output directory: copy only public, explicitly named release assets.
 await rm(destination, { recursive: true, force: true })
@@ -29,14 +33,14 @@ await mkdir(destination, { recursive: true })
 const releases = []
 for (const variant of variants) {
   const filename = `yandu-${version}-${variant.suffix}`
-  const file = resolve(source, filename)
+  const file = resolve(source, variant.folder, filename)
   let info
   try { info = await stat(file) } catch (error) { if (error.code !== 'ENOENT') throw error }
   if (!info) { releases.push({ ...variant, filename, version, available: false }); continue }
   const digest = createHash('sha256')
   for await (const chunk of createReadStream(file)) digest.update(chunk)
   const sha256 = digest.digest('hex')
-  if (checksums.get(filename) !== sha256) throw new Error(`发布包校验失败：${filename}。请重新生成 release/artifacts。`)
+  if (inventories.get(variant.folder).get(filename) !== sha256) throw new Error(`发布包校验失败：${filename}。请重新生成 release/artifacts。`)
   await copyFile(file, resolve(destination, filename))
   releases.push({ ...variant, filename, version, available: true, size: info.size, sha256 })
 }

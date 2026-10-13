@@ -35,8 +35,37 @@ func Overlap(a, b string) bool {
 	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
 }
 func ValidateProject(p model.Project, s model.Snapshot) error {
+	if err := p.ValidateMediaPolicy(); err != nil {
+		return err
+	}
 	if !Identifier(p.ID) || strings.TrimSpace(p.DisplayName) == "" || len(p.DisplayName) > 160 {
 		return model.Err("INVALID_PROJECT", "项目标识或名称无效")
+	}
+	if p.IsStorage() {
+		if p.QuotaBytes <= 0 {
+			return model.Err("INVALID_QUOTA", "存储配额必须大于零")
+		}
+		if !filepath.IsAbs(p.RootPath) {
+			return model.Err("PATH_OUTSIDE_ROOT", "存储目录必须为绝对路径")
+		}
+		allowed := false
+		for _, r := range s.Roots {
+			if Within(r, p.RootPath) {
+				allowed = true
+			}
+		}
+		if !allowed {
+			return model.Err("PATH_OUTSIDE_ROOT", "请先授权存储目录")
+		}
+		for _, q := range s.Projects {
+			if q.ID != p.ID && RootsOverlap(q.RootPath, p.RootPath) {
+				return model.Err("ROOT_CONFLICT", "项目存储目录不能相互包含")
+			}
+		}
+		return CheckDirectory(p.RootPath)
+	}
+	if p.Mode != "" && p.Mode != "readonly_mapping" {
+		return model.Err("INVALID_PROJECT", "项目模式无效")
 	}
 	site, ok := s.Site(p.SiteID)
 	if !ok {
@@ -114,6 +143,11 @@ func ValidateProject(p model.Project, s model.Snapshot) error {
 	}
 	if !allowed {
 		return model.Err("PATH_OUTSIDE_ROOT", "请先明确授权此资源根目录")
+	}
+	for _, q := range s.Projects {
+		if q.ID != p.ID && q.IsStorage() && RootsOverlap(q.RootPath, p.RootPath) {
+			return model.Err("ROOT_CONFLICT", "只读映射不能访问受管存储目录")
+		}
 	}
 	return CheckDirectory(p.RootPath)
 }
@@ -222,4 +256,35 @@ func URL(domain, base, rel string) string {
 		parts[i] = url.PathEscape(v)
 	}
 	return fmt.Sprintf("https://%s%s/%s", domain, base, strings.Join(parts, "/"))
+}
+
+func RootsOverlap(a, b string) bool {
+	if Within(a, b) || Within(b, a) {
+		return true
+	}
+	one, e := os.Stat(a)
+	if e != nil {
+		return false
+	}
+	two, e := os.Stat(b)
+	if e != nil {
+		return false
+	}
+	for v := b; ; v = filepath.Dir(v) {
+		if info, e := os.Stat(v); e == nil && os.SameFile(one, info) {
+			return true
+		}
+		if filepath.Dir(v) == v {
+			break
+		}
+	}
+	for v := a; ; v = filepath.Dir(v) {
+		if info, e := os.Stat(v); e == nil && os.SameFile(two, info) {
+			return true
+		}
+		if filepath.Dir(v) == v {
+			break
+		}
+	}
+	return false
 }

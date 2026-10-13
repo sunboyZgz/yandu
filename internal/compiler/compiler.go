@@ -47,6 +47,9 @@ func FRPC(s model.Snapshot, caPath, adminPassword string) string {
 	p := s.Profile
 	var b strings.Builder
 	fmt.Fprintf(&b, "serverAddr = %s\nserverPort = %d\nloginFailExit = false\nauth.method = \"token\"\nauth.token = %s\ntransport.tls.enable = true\ntransport.tls.trustedCaFile = %s\ntransport.tls.serverName = %s\nwebServer.addr = \"127.0.0.1\"\nwebServer.port = 18768\nwebServer.user = \"yandu\"\nwebServer.password = %s\nlog.to = \"console\"\nlog.level = \"warn\"\n", quote(p.ServerAddr), p.ServerPort, quote(p.TunnelToken), quote(caPath), quote(p.TLSName), quote(adminPassword))
+	if p.Storage != nil {
+		fmt.Fprintf(&b, "\n[[proxies]]\nname = %s\ntype = \"tcp\"\nlocalIP = \"127.0.0.1\"\nlocalPort = 18770\nremotePort = %d\n", quote(p.DeviceID+"-storage"), p.Storage.RemotePort)
+	}
 	for _, pr := range s.Effective {
 		site, ok := s.Site(pr.SiteID)
 		if !ok || pr.Publication != "active" {

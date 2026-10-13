@@ -1,113 +1,76 @@
 ---
 title: 快速开始
-description: 选择源码开发模式或 Windows 安装包，准备两端连接并发布第一张图片。
+description: 启动云端和本机、导入连接包、创建项目并验证业务读写的完整流程。
 ---
 
 # 快速开始
 
-## 选择运行方式
+完整链路：**云端服务 → 本机服务 → 连接与配对 → 存储项目 → 业务读写验证**。云端 frps/网关和本机 Agent/SFTPGo 都需保持运行；本机无需公网 IP。平台发布状态见[验证记录](/reference/storage-verification)。
 
-| 运行方式 | 从哪里开始 |
-| --- | --- |
-| 当前 macOS 从源码使用工具 | [开发模式使用](./development.md)：`make dev`，或使用 `make dev-serve` 前台调试；素材填写 macOS 绝对路径 |
-| Windows 安装包部署 | 继续阅读本页的安装步骤 |
-| Windows 从源码运行 | [Windows 开发模式](./development-windows.md)：普通 PowerShell 运行开发入口 |
-| Linux 从源码运行 | [Linux 源码步骤](./development.md#linux-x64) |
+## 1. 启动云端服务器
 
-以下流程面向 Windows 安装包。目标是让 `https://example.com/blog/xxx/photo.png` 读取到 `D:/oss/blog/xxx/photo.png`，同时保留云端 `/blog` 的页面行为。
-
-## 开始前
-
-准备以下条件：
-
-- 一台 Windows 11 x64 设备及管理员安装权限。
-- 一台 Ubuntu 24.04 x64 服务器，运行宿主机 Nginx。
-- 已能通过 HTTPS 访问的网站，例如 `example.com`。
-- 一个只存放允许发布素材的本地目录。
-- [Windows 与 Linux 发布包](../downloads.md)。安装最终客户端不需要 Go、Node.js 或 Python。
-
-::: tip 使用源码时
-[开发模式使用](./development.md) 提供启动、配对、macOS 目录示例、CLI 项目操作、代码更新与进程停止的完整流程。实际项目操作同样需要你自己的云端连接包。
-:::
-
-## 1. 准备云端网站
-
-解压 Linux 包，在服务器上先预览接入修改：
+在 Ubuntu 24.04 x64 上解压 Linux 包，首次安装：
 
 ```bash
-sudo bash ./install-cloud.sh \
-  --mode existing-nginx \
-  --site-id main \
-  --domain example.com \
-  --server-config /etc/nginx/sites-available/main.conf \
-  --allow /blog/ \
-  --dry-run
+sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device owner
 ```
 
-把示例域名、站点 ID 和配置路径换成你的实际值。确认选中了自己的 HTTPS server 块后，去掉 `--dry-run` 执行安装。
+替换成真实服务器 IP。安装器启动 `yandu-frps`、`yandu-gateway`，并生成 `/etc/yandu/owner.yandu-profile`；连接包口令由终端输入。安全交付该包，口令单独传递。
 
-安装器会通过终端让你输入连接包口令，并生成 `main.yandu-profile`。安全传送这个加密包，单独交付口令。
+已安装时无需重复安装，用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认 TLS 隧道 `0.0.0.0:7000`、转发 `127.0.0.1:19090`、网关 `127.0.0.1:19091`；19090 在本机注册代理后监听。安装、启动检查与配置方法见[云端服务器启动](./cloud-startup.md)。
 
-**完成标志：** 网站保持正常，取得加密连接包，服务器 SSH 和隧道 TCP 7000 可达。更详细的步骤见 [准备云端网站](./cloud.md)。
+## 2. 启动本机客户端
 
-## 2. 安装 Windows 客户端
+| 方式 | 入口 | 状态目录与权限 |
+| --- | --- | --- |
+| macOS ARM64 源码 | [macOS 开发模式](./development.md) | `.yandu-storage-dev`，当前用户 |
+| Windows x64 源码 | [Windows 开发模式](./development-windows.md) | `.yandu-storage-dev`，当前用户 |
+| 完整存储组件包 | [本机安装](./storage-deployment.md)、[下载](/downloads) | 系统受管目录，独立服务身份 |
 
-将连接包放入解压后的 Windows 发布包目录。在管理员 PowerShell 中执行：
+本机默认回环管理页 18765、存储 API 18770、SFTPGo 18771。一键入口端口固定，配置与占用检查见[端口说明](./ports.md#本机开发与安装)。启动完成后，用启动器或 `ui --require-running` 打开管理页。
+
+## 3. 导入连接包并配对
+
+在本机「服务器连接」导入云端生成的 schema v2 包，输入口令并检查隧道状态。本机主动连接云端 7000；云端 19090 和 19091 保持回环。
+
+导入会停用已有项目，已有项目需核对后重新启用；新项目在下一步创建。详细步骤见[连接与配对](./connection.md)。
+
+## 4. 创建存储项目
+
+源码模式先创建空测试目录。macOS：
+
+```bash
+mkdir -p "$PWD/.local/storage-projects/demo"
+```
+
+Windows：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1 -ProfilePath .\main.yandu-profile
+New-Item -ItemType Directory -Path "$PWD\.local\storage-projects\demo" -Force
 ```
 
-按提示输入连接包口令。安装器注册后台服务并创建“檐渡”桌面快捷方式；临时执行策略只作用于本次 PowerShell 进程。
+macOS 使用 APFS，Windows 使用固定 NTFS 卷。安装模式先按[本机安装](./storage-deployment.md)使用目录脚本授予服务权限。非空来源目录通过[显式导入](./business-integration.md#导入已有文件)接入。
 
-给本地素材目录授予服务账号读取权限：
+在管理页创建项目 `demo`，填写目录的绝对路径与配额，例如 10 GiB，点击「授权目录并启用项目」，等待状态为 `active`。上传一个小文件，媒体预设留空；以校验入库完成、文件可下载为准。版本、回收站操作见[文件管理](./storage-files.md)。
 
-```powershell
-icacls D:\oss\blog /grant '*S-1-5-19:(OI)(CI)RX'
+## 5. 创建业务凭证
+
+在项目「凭证」页申请 `read`、`upload`；业务需要目录修改或媒体任务时增加对应权限。密钥只留在业务服务端，浏览器使用业务自己的会话。
+
+云端业务使用 `YANDU_GATEWAY=http://127.0.0.1:19091` 或同一 SDK `basePath`。Docker 与受信内网地址见[云端接入](./cloud-startup.md#docker-业务接入)，SDK 和示例启动见[业务接入](./business-integration.md)。
+
+## 6. 从云端验证业务链路
+
+在云服务器执行 `sudo yandu list`，确认本机在线及 `demo` 项目状态。然后在业务服务端安全设置 `YANDU_PROJECT_KEY`，验证项目容量：
+
+```bash
+curl --fail --show-error --max-time 10 \
+  -H "Authorization: Bearer $YANDU_PROJECT_KEY" \
+  http://127.0.0.1:19091/storage/v1/projects/demo/capacity
 ```
 
-**完成标志：** 可以用快捷方式打开本机管理页，文件服务已启动。完整说明见 [安装 Windows 客户端](./windows.md)。
+还需通过业务示例上传、读取一个原件，确认版本为 `READY`，再验证下载及 Range。容量查询成功只证明该接口可达，不替代文件读写。设备离线时返回 503 `DEVICE_OFFLINE`，排查见[故障指南](./troubleshooting.md)。
 
-## 3. 确认连接
+## 只调试本机功能
 
-在“服务器连接”中确认设备身份、授权站点和 SSH 主机指纹，再点击“测试配置通道”。若安装时没有导入连接包，在这里选择 `.yandu-profile` 并输入口令。
-
-**完成标志：** 配置通道测试通过。导入连接包不会自动公开已有项目。
-
-## 4. 创建第一个项目
-
-先准备一个真实图片：
-
-```text
-D:/oss/blog/xxx/photo.png
-```
-
-在“项目管理”点击“新建项目”，填写：
-
-| 字段 | 示例 |
-| --- | --- |
-| 项目名称 | 个人博客 |
-| 项目标识 | `blog` |
-| 本地素材目录 | `D:/oss/blog` |
-| 网站站点 | `example.com · main` |
-| 页面基础路径 | `/blog` |
-| 资源路径范围 | `/blog/xxx/` |
-| 访问权限 | 公开只读 |
-| 缓存策略 | 每次重验证 |
-
-明确授权该素材目录，点击“保存项目”。此时状态应为“未发布”。
-
-## 5. 确认并应用
-
-点击“应用”，检查目录与资源范围，勾选发布确认后点击“确认并应用”。
-
-后台会依次校验配置、准备文件服务、注册隧道、同步云端入口并验证实际资源响应。可以在“操作记录”查看各阶段结果。
-
-**完成标志：** 项目状态显示“已生效”，下面两个地址分别返回预期内容：
-
-```text
-https://example.com/blog                 → 云端博客页面
-https://example.com/blog/xxx/photo.png   → 本地图片
-```
-
-如果未生效，按照 [状态与故障排查](./troubleshooting.md) 处理对应阶段。选择密码保护的项目还需要输入资源密码完成 [外网验证](./access.md)。
+单机调试可跳过云端与配对，用源码入口运行，业务直接访问 `http://127.0.0.1:18770`。这适用于本机测试；远端业务的完整链路按上面步骤启动两端。

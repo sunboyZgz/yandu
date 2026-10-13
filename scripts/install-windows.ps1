@@ -1,5 +1,10 @@
 #Requires -RunAsAdministrator
 param([string]$ProfilePath,[string]$InstallPath="$env:ProgramFiles\Yandu",[string]$StatePath="$env:ProgramData\Yandu",[switch]$SkipOpen)
+if(Test-Path "$PSScriptRoot\component-receipt.json"){
+ & "$PSScriptRoot\install-storage-windows.ps1" -InstallPath $InstallPath -StatePath $StatePath -SkipOpen:$SkipOpen
+ if($ProfilePath){& "$InstallPath\yandu.exe" --state-dir $StatePath connection import $ProfilePath}
+ return
+}
 $ErrorActionPreference='Stop'
 if (-not [Environment]::Is64BitOperatingSystem) { throw '需要 Windows x64' }
 $Source=$PSScriptRoot

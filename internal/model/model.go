@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-const Version = "0.1.0"
+const Version = "0.2.0"
+const StorageAddr = "127.0.0.1:18770"
+const SFTPGoAddr = "127.0.0.1:18771"
 const ManagementAddr = "127.0.0.1:18765"
 const ResourceAddr = "127.0.0.1:18766"
 const GuardAddr = "127.0.0.1:18767"
@@ -34,41 +36,63 @@ type Site struct {
 	AllowedPrefixes   []string `json:"allowedPrefixes"`
 	ProtectedPrefixes []string `json:"protectedPrefixes"`
 }
+type StorageTunnel struct {
+	RemotePort   int    `json:"remotePort"`
+	GatewayURL   string `json:"gatewayUrl"`
+	MonitorToken string `json:"monitorToken,omitempty"`
+}
 type Profile struct {
-	SchemaVersion  int    `json:"schemaVersion"`
-	DeviceID       string `json:"deviceId"`
-	ServerAddr     string `json:"serverAddr"`
-	ServerPort     int    `json:"serverPort"`
-	TLSName        string `json:"tlsName"`
-	TunnelCA       string `json:"tunnelCA"`
-	TunnelToken    string `json:"tunnelToken"`
-	SSHAddr        string `json:"sshAddr"`
-	SSHUser        string `json:"sshUser"`
-	SSHFingerprint string `json:"sshFingerprint"`
-	SSHPrivateKey  string `json:"sshPrivateKey"`
-	Sites          []Site `json:"sites"`
+	Storage        *StorageTunnel `json:"storage,omitempty"`
+	SchemaVersion  int            `json:"schemaVersion"`
+	DeviceID       string         `json:"deviceId"`
+	ServerAddr     string         `json:"serverAddr"`
+	ServerPort     int            `json:"serverPort"`
+	TLSName        string         `json:"tlsName"`
+	TunnelCA       string         `json:"tunnelCA"`
+	TunnelToken    string         `json:"tunnelToken"`
+	SSHAddr        string         `json:"sshAddr"`
+	SSHUser        string         `json:"sshUser"`
+	SSHFingerprint string         `json:"sshFingerprint"`
+	SSHPrivateKey  string         `json:"sshPrivateKey"`
+	Sites          []Site         `json:"sites"`
 }
 type Project struct {
-	ID               string   `json:"id"`
-	DisplayName      string   `json:"displayName"`
-	SiteID           string   `json:"siteId"`
-	ProjectBase      string   `json:"projectBase"`
-	RootPath         string   `json:"rootPath"`
-	ResourcePrefixes []string `json:"resourcePrefixes"`
-	Publication      string   `json:"publication"`
-	AccessPolicy     string   `json:"accessPolicy"`
-	CachePolicy      string   `json:"cachePolicy"`
-	ContentPolicy    string   `json:"contentPolicy"`
-	Revision         int64    `json:"revision"`
-	Status           string   `json:"status"`
-	LastError        string   `json:"lastError,omitempty"`
-	Username         string   `json:"username,omitempty"`
-	PasswordHash     string   `json:"passwordHash,omitempty"`
-	Generation       string   `json:"generation,omitempty"`
-	ProbeToken       string   `json:"probeToken,omitempty"`
-	AppliedRevision  int64    `json:"appliedRevision"`
+	Mode             string       `json:"mode,omitempty"`
+	QuotaBytes       int64        `json:"quotaBytes,omitempty"`
+	MediaPolicy      *MediaPolicy `json:"mediaPolicy,omitempty"`
+	ID               string       `json:"id"`
+	DisplayName      string       `json:"displayName"`
+	SiteID           string       `json:"siteId"`
+	ProjectBase      string       `json:"projectBase"`
+	RootPath         string       `json:"rootPath"`
+	ResourcePrefixes []string     `json:"resourcePrefixes"`
+	Publication      string       `json:"publication"`
+	AccessPolicy     string       `json:"accessPolicy"`
+	CachePolicy      string       `json:"cachePolicy"`
+	ContentPolicy    string       `json:"contentPolicy"`
+	Revision         int64        `json:"revision"`
+	Status           string       `json:"status"`
+	LastError        string       `json:"lastError,omitempty"`
+	Username         string       `json:"username,omitempty"`
+	PasswordHash     string       `json:"passwordHash,omitempty"`
+	Generation       string       `json:"generation,omitempty"`
+	ProbeToken       string       `json:"probeToken,omitempty"`
+	AppliedRevision  int64        `json:"appliedRevision"`
 }
 
+// MediaPolicy limits derived MP4 files, never the original upload.
+type MediaPolicy struct {
+	MP4MaxFileBytes int64 `json:"mp4MaxFileBytes"`
+}
+
+func (p Project) ValidateMediaPolicy() error {
+	if p.MediaPolicy != nil && (!p.IsStorage() || p.MediaPolicy.MP4MaxFileBytes < 1 || p.MediaPolicy.MP4MaxFileBytes > 9007199254740991 || p.MediaPolicy.MP4MaxFileBytes > p.QuotaBytes) {
+		return Err("INVALID_MEDIA_POLICY", "MP4 产物上限必须为不超过项目配额的安全正整数字节数")
+	}
+	return nil
+}
+
+func (p Project) IsStorage() bool { return p.Mode == "application_storage" }
 func (p Project) Public() Project {
 	p.PasswordHash = ""
 	p.ProbeToken = ""

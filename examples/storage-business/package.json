@@ -1,0 +1,1 @@
+{"name":"yandu-storage-business-example","private":true,"type":"module","version":"0.2.0","scripts":{"start":"node server.mjs"},"dependencies":{"@yandu/storage-server":"file:../../sdk/typescript","express":"5.1.0","express-session":"1.18.2","http-proxy":"1.18.1","tus-js-client":"4.3.1"}}

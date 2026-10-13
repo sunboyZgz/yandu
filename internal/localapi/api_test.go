@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"yandu/internal/model"
 	"yandu/internal/reconcile"
@@ -60,5 +61,30 @@ func TestHostOriginSessionAndCSRF(t *testing.T) {
 	}
 	if !w.Result().Cookies()[0].HttpOnly {
 		t.Fatal("session cookie readable")
+	}
+}
+
+func TestStatusDoesNotExposeDeviceMonitorToken(t *testing.T) {
+	s, e := state.Open(t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.Close()
+	monitorToken := "ym_" + model.ID() + model.ID()
+	s.Update(func(v *model.Snapshot) error {
+		v.Profile = &model.Profile{DeviceID: "owner", Storage: &model.StorageTunnel{RemotePort: 19090, GatewayURL: "http://127.0.0.1:19091", MonitorToken: monitorToken}}
+		return nil
+	})
+	a := New(&reconcile.Engine{Store: s, Ctx: context.Background()}, "secret")
+	r := httptest.NewRequest("GET", "http://"+model.ManagementAddr+"/api/v1/status", nil)
+	r.Header.Set("Authorization", "Bearer secret")
+	w := httptest.NewRecorder()
+	a.ServeHTTP(w, r)
+	if w.Code != 200 || strings.Contains(w.Body.String(), monitorToken) || strings.Contains(w.Body.String(), "monitorToken") {
+		t.Fatal("status exposes private monitoring profile", w.Body.String())
+	}
+	v, e := s.Read()
+	if e != nil || v.Profile.Storage.MonitorToken != monitorToken {
+		t.Fatal("status redaction changed stored profile")
 	}
 }

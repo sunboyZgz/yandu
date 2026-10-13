@@ -1,3 +1,4 @@
+import StoragePanel from "./StoragePanel";
 import {
   useCallback,
   useEffect,
@@ -40,6 +41,9 @@ import {
 } from "lucide-react";
 
 type Project = {
+ mode?: string;
+ quotaBytes?: number;
+ mediaPolicy?: {mp4MaxFileBytes:number};
   id: string;
   displayName: string;
   siteId: string;
@@ -89,6 +93,7 @@ type Status = {
   cloudRevisions: Record<string, number>;
   deviceId: string;
   sshFingerprint: string;
+  storageTunnel?: { remotePort: number; gatewayUrl: string } | null;
   components: {
     agent: boolean;
     fileService: boolean;
@@ -111,7 +116,7 @@ type Files = {
   path: string;
   root: string;
 };
-type View = "overview" | "projects" | "files" | "connection" | "logs";
+type View = "storage" | "overview" | "projects" | "files" | "connection" | "logs";
 let csrf = "";
 async function api<T>(
   path: string,
@@ -175,6 +180,7 @@ const empty: Project = {
   appliedRevision: 0,
 };
 const viewTitles: Record<View, string> = {
+ storage: "通用应用存储",
   overview: "总览",
   projects: "项目管理",
   files: "目录与文件",
@@ -395,6 +401,7 @@ export default function App() {
       .includes(search.toLowerCase()),
   );
   const active = status.projects.filter((p) => p.status === "active").length;
+  const storageMode = status.projects.some((p) => p.mode === "application_storage");
   const pending = status.projects.filter(
     (p) => !["active", "draft", "disabled"].includes(p.status),
   ).length;
@@ -418,7 +425,8 @@ export default function App() {
             [
               { id: "overview", name: "总览", icon: Layers3 },
               { id: "projects", name: "项目管理", icon: FolderOpen },
-              { id: "files", name: "目录与文件", icon: FileImage },
+              { id: "storage", name: "通用应用存储", icon: HardDrive },
+{ id: "files", name: "目录与文件", icon: FileImage },
               { id: "connection", name: "服务器连接", icon: Network },
               { id: "logs", name: "操作记录", icon: History },
             ] as const
@@ -491,7 +499,7 @@ export default function App() {
                 <div>
                   <div className="eyebrow">LOCAL FILES, CONNECTED.</div>
                   <h1>屋檐之下，也能抵达。</h1>
-                  <p>为网站连接本地资源。文件留在这里，页面继续由云端提供。</p>
+                  <p>为应用连接本地文件。通过私有存储 API 或网站资源路径，按需传输内容。</p>
                 </div>
                 <button className="primary" onClick={openNew}>
                   <Plus size={17} />
@@ -521,7 +529,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="map-line">
-                    <span>只读资源</span>
+                    <span>{storageMode ? "通用存储 API" : "只读资源"}</span>
                     <div>
                       <i />
                       <i />
@@ -535,19 +543,18 @@ export default function App() {
                       <Cloud size={27} />
                     </div>
                     <div>
-                      <strong>{status.sites[0]?.domain || "你的网站"}</strong>
+                      <strong>{storageMode ? "你的业务服务" : status.sites[0]?.domain || "你的网站"}</strong>
                       <p>
-                        {status.projects[0]?.resourcePrefixes[0] ||
-                          "/blog/xxx/"}
-                        <span className="filename">image.png</span>
+                        {storageMode ? "/storage/v1/projects/" : status.projects[0]?.resourcePrefixes[0] || "/blog/xxx/"}
+                        <span className="filename">{storageMode ? "项目 ID" : "image.png"}</span>
                       </p>
-                      <span>页面和业务 API 保留原有行为</span>
+                      <span>{storageMode ? "项目凭证保存在业务服务端" : "页面和业务 API 保留原有行为"}</span>
                     </div>
                   </div>
                 </div>
                 <div className="map-footer">
                   <ShieldCheck size={14} />
-                  <span>仅显式登记的资源路径进入隧道</span>
+                  <span>{storageMode ? "按项目与操作授权，文件按需传输" : "仅显式登记的资源路径进入隧道"}</span>
                   <span className="map-footer-end">
                     目录不会复制到云端
                     <Check size={13} />
@@ -564,7 +571,7 @@ export default function App() {
                 <Metric
                   label="已生效"
                   value={active}
-                  note="已通过外网资源验证"
+                  note="已启用并完成项目配置"
                   icon={<Link2 size={19} />}
                 />
                 <Metric
@@ -590,12 +597,12 @@ export default function App() {
               <ProjectTable
                 projects={status.projects.slice(0, 5)}
                 sites={status.sites}
-                onEdit={setEdit}
+                onEdit={(p) => { if(p.mode === "application_storage") { setSelected(p.id); setView("storage"); } else setEdit(p); }}
                 onNew={openNew}
                 onApply={(p) => setConfirm({ p, action: "apply" })}
                 onFiles={(p) => {
                   setSelected(p.id);
-                  setView("files");
+                  setView(p.mode === "application_storage" ? "storage" : "files");
                 }}
                 onDisable={(p) => void action(p, "disable")}
               />
@@ -605,9 +612,9 @@ export default function App() {
                     <Unplug size={23} />
                   </div>
                   <div>
-                    <h3>先连接你的云端网站</h3>
+                    <h3>连接你的云端服务器</h3>
                     <p>
-                      导入云端安装器生成的加密连接包，再添加本地目录和资源路径。
+                      通用存储可先在本机使用；导入 storage-only 或网站连接包后建立私有隧道。
                     </p>
                   </div>
                   <button onClick={() => setView("connection")}>
@@ -701,12 +708,12 @@ export default function App() {
               <ProjectTable
                 projects={projects}
                 sites={status.sites}
-                onEdit={setEdit}
+                onEdit={(p) => { if(p.mode === "application_storage") { setSelected(p.id); setView("storage"); } else setEdit(p); }}
                 onNew={openNew}
                 onApply={(p) => setConfirm({ p, action: "apply" })}
                 onFiles={(p) => {
                   setSelected(p.id);
-                  setView("files");
+                  setView(p.mode === "application_storage" ? "storage" : "files");
                 }}
                 onDisable={(p) => void action(p, "disable")}
                 onRemove={(p) => setConfirm({ p, action: "remove" })}
@@ -724,9 +731,10 @@ export default function App() {
               />
             </>
           )}
+          {view === "storage" && <StoragePanel projects={status.projects} initialProjectId={selected} csrf={csrf} refresh={refresh} />}
           {view === "files" && (
             <FilesView
-              projects={status.projects}
+              projects={status.projects.filter(p => p.mode!=="application_storage")}
               selected={selected}
               onSelected={setSelected}
               notify={notify}
@@ -799,7 +807,7 @@ export default function App() {
             </>
           )}
           <footer className="page-footer">
-            <span>檐渡 · 让本地资源与网站相连</span>
+            <span>檐渡 · 本地文件连接你的应用</span>
             <span>
               <ShieldCheck size={13} />
               文件在本地，控制也在本地
@@ -938,7 +946,7 @@ function ProjectTable({
           <thead>
             <tr>
               <th>项目 / 本地目录</th>
-              <th>网站资源路径</th>
+              <th>接入方式</th>
               <th>状态</th>
               <th className="align-right">操作</th>
             </tr>
@@ -963,6 +971,7 @@ function ProjectTable({
                   </div>
                 </td>
                 <td>
+                  {p.mode === "application_storage" ? <><span className="domain-text">通用存储 API</span><code className="route-code">{p.id}</code></> : <>
                   <span className="domain-text">
                     {sites.find((s) => s.id === p.siteId)?.domain || p.siteId}
                   </span>
@@ -972,6 +981,7 @@ function ProjectTable({
                       <span>*</span>
                     </code>
                   ))}
+                  </>}
                 </td>
                 <td>
                   <Pill p={p} />
@@ -1649,7 +1659,7 @@ function Connection({
     <>
       <Heading
         title="连接一次，管理多个项目。"
-        subtitle="使用加密连接包配对你的云服务器。域名与资源路径权限由云端管理员授予。"
+        subtitle="使用加密连接包配对云服务器。通用存储模式只需服务器 IP；网站映射权限由云端管理员授予。"
       />
       <div className="connection-columns">
         <section className="panel">
@@ -1714,10 +1724,11 @@ function Connection({
               <dl className="connection-details">
                 <dt>设备身份</dt>
                 <dd>{status.deviceId}</dd>
-                <dt>SSH 主机指纹</dt>
+                {status.storageTunnel && <><dt>私有存储网关</dt><dd>{status.storageTunnel.gatewayUrl}</dd><dt>隧道内部端口</dt><dd>{status.storageTunnel.remotePort}</dd></>}
+                {status.sites.length>0 && <><dt>SSH 主机指纹</dt>
                 <dd>
                   <code>{status.sshFingerprint}</code>
-                </dd>
+                </dd></>}
                 <dt>授权站点</dt>
                 <dd>
                   {status.sites.map((s) => (
@@ -1734,7 +1745,7 @@ function Connection({
                   setBusy(true);
                   try {
                     await api("/connection/test", "POST", {});
-                    notify("SSH 指纹与设备授权验证通过");
+                    notify(status.sites.length ? "SSH 指纹与设备授权验证通过" : "存储隧道已注册；业务可通过网关检查项目 API");
                   } catch (e) {
                     notify((e as Error).message);
                   } finally {
@@ -1743,7 +1754,7 @@ function Connection({
                 }}
               >
                 <RefreshCw size={16} />
-                测试配置通道
+                {status.sites.length ? '测试配置通道' : '检查存储隧道'}
               </button>
             </>
           ) : (

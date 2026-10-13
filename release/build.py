@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-import hashlib,json,os,pathlib,shutil,subprocess,tarfile,zipfile
+import argparse,hashlib,json,os,pathlib,shutil,subprocess,tarfile,zipfile
 ROOT=pathlib.Path(__file__).resolve().parent.parent;OUT=ROOT/'release/artifacts';OUT.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser(description='Build legacy client or Linux cloud packages using locked dependencies.')
+parser.add_argument('--target',choices=('all','windows','linux','darwin'),default='all')
+options=parser.parse_args()
 def run(args,**kwargs):subprocess.run(args,cwd=ROOT,check=True,**kwargs)
 run(['npm','--prefix','web','ci']);run(['npm','--prefix','web','run','build']);run(['go','test','./...']);run(['go','vet','./...']);run(['python3','release/fetch-components.py'])
 lock=json.loads((ROOT/'release/dependencies.lock.json').read_text())
@@ -21,12 +24,13 @@ for package in ('react','react-dom','scheduler','lucide-react'):
  for f in (ROOT/'web/node_modules'/package).glob('LICENSE*'):shutil.copy2(f,license_dir/(package+'-'+f.name))
 archives=[]
 for system,arch,caddy_os,frp_os in [('windows','amd64','windows','windows'),('linux','amd64','linux','linux'),('darwin','arm64','mac','darwin')]:
- name=f'yandu-0.1.0-{system}-{arch}';stage=OUT/name
+ if options.target not in ('all',system):continue
+ name=f'yandu-0.2.0-{system}-{arch}';stage=OUT/name
  if stage.exists():shutil.rmtree(stage)
  (stage/'bin').mkdir(parents=True)
  env={**os.environ,'GOOS':system,'GOARCH':arch,'CGO_ENABLED':'0'};suffix='.exe' if system=='windows' else ''
- run(['go','build','-trimpath','-ldflags=-s -w','-o',str(stage/('yandu'+suffix)),'./cmd/yandu'],env=env)
- if system=='linux':run(['go','build','-trimpath','-ldflags=-s -w','-o',str(stage/'yandu-cloud'),'./cmd/yandu-cloud'],env=env)
+ run(['go','build','-trimpath','-ldflags=-s -w','-o',str(stage/('yandu'+suffix)),'./cmd/yandu-cloud' if system=='linux' else './cmd/yandu'],env=env)
+ if system=='linux':shutil.copy2(stage/'yandu',stage/'yandu-cloud')
  for dep,osname,exe in [('caddy',caddy_os,'caddy'),('frp',frp_os,'frpc')]:
   if system=='linux' and dep=='caddy':continue
   folder=OUT/'deps'/f"{dep}_{lock[dep]['version']}_{osname}_{arch}"
@@ -36,7 +40,7 @@ for system,arch,caddy_os,frp_os in [('windows','amd64','windows','windows'),('li
  # Source development launchers require a checkout and do not belong in installation packages.
  deploy_scripts={
   'windows':('install-windows.ps1','upgrade-windows.ps1','uninstall-windows.ps1','start.ps1'),
-  'linux':('install-cloud.sh','upgrade-cloud.sh','uninstall-cloud.sh','block-cloud.sh','nginx-integrate.py'),
+  'linux':('install-cloud.sh','upgrade-cloud.sh','uninstall-cloud.sh','block-cloud.sh','nginx-integrate.py','install-cloud-storage.sh'),
   'darwin':(),
  }
  for script in deploy_scripts[system]:shutil.copy2(ROOT/'scripts'/script,stage/script)
@@ -54,4 +58,5 @@ for system,arch,caddy_os,frp_os in [('windows','amd64','windows','windows'),('li
   archive=OUT/(name+'.tar.gz')
   with tarfile.open(archive,'w:gz') as t:t.add(stage,arcname=name)
  archives.append(archive);print('Built '+archive.name,flush=True)
+archives=sorted([*OUT.glob('*.zip'),*OUT.glob('*.tar.gz')])
 (OUT/'SHA256SUMS').write_text(''.join(hashlib.sha256(f.read_bytes()).hexdigest()+'  '+f.name+'\n' for f in archives))

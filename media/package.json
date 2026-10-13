@@ -1,0 +1,1 @@
+{"name":"yandu-media-worker","private":true,"version":"0.2.0","type":"module","dependencies":{"exiftool-vendored":"39.0.1","sharp":"0.35.5"},"engines":{"node":">=22.0.0"},"scripts":{"check":"node --check worker.mjs"}}

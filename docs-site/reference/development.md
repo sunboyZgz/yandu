@@ -9,41 +9,7 @@ description: 构建源码、运行 VitePress 文档站，以及把静态文档�
 
 ## 工具开发模式入口
 
-完整操作流程见 [开发模式使用](../guide/development.md)，包含源码启动、前台调试、macOS 素材目录、导入连接包、创建与应用项目、重启和停止 Agent。
-
-Windows x64 已提供原生 PowerShell 入口，详见 [Windows 开发模式](../guide/development-windows.md)：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1
-```
-
-跨平台启动器为 `scripts/dev.py`，组件平台与版本由当前系统及锁文件选择；可运行 `python3 scripts/test_dev.py -v` 验证启动流程。源码开发脚本不放入安装包。
-
-当前 macOS ARM64 的快捷命令：
-
-```bash
-make dev          # 后台启动并打开管理页
-make dev-build    # 仅构建，不启动
-make dev-serve    # 前台调试；使用前先停止已有 Agent
-```
-
-这些命令针对同一套默认 `.local/bin/` 程序与 `.yandu/` 状态，不应并行启动两个 Agent。Go/React 变更需要重新构建并重启，当前独立 React Vite 代理不支持完整管理页鉴权。
-
-运行 Go 测试前先停止开发 Agent，避免真实组件用例占用同样的资源端口：
-
-```bash
-make check
-make test-race
-make release
-```
-
-真实组件联调需提供实际 Nginx 二进制路径：
-
-```bash
-YANDU_TEST_NGINX=/absolute/path/nginx make integration
-```
-
-缺少真实组件时测试会明确 skip，不能当作目标环境验收通过。
+通用存储的源码入口、依赖和重启方法见[macOS 开发模式](/guide/development)与[Windows 开发模式](/guide/development-windows)。管理、存储和后端默认监听本机回环 18765 / 18770 / 18771，当前端口固定，配置来源见[端口配置](/guide/ports#本机开发与安装)。旧入口 `make dev` / `scripts/dev.ps1` 见[兼容开发指南](/guide/readonly-development)。
 
 ## 运行本网站
 
@@ -54,9 +20,15 @@ npm --prefix docs-site ci
 npm --prefix docs-site run dev
 ```
 
-默认文档地址为 `http://127.0.0.1:5174/`。也可以使用 `make docs-dev`。
+默认监听 `127.0.0.1:5174`。改用 5175：
 
-VitePress 依赖与 Vue 版本由 `docs-site/package-lock.json` 锁定。当前使用稳定版 VitePress 1.6.4，文档构建与预览命令遵循 [VitePress 官方部署说明](https://vuejs.github.io/vitepress/v1/guide/deploy)。
+```bash
+DOCS_PORT=5175 npm --prefix docs-site run dev
+```
+
+Windows PowerShell 先执行 `$env:DOCS_PORT='5175'`，再运行同一 npm 命令。开发和静态预览共用 `DOCS_PORT`，端口冲突时不自动换号。完整示例见[文档站端口配置](/guide/ports#文档站开发与静态预览)。
+
+VitePress 与 Vue 版本由 `docs-site/package-lock.json` 锁定。
 
 ## 构建静态网站
 
@@ -70,19 +42,12 @@ npm --prefix docs-site run check
 预览生产产物：
 
 ```bash
-npm --prefix docs-site run preview
+DOCS_PORT=5176 npm --prefix docs-site run preview
 ```
 
 ## 下载区的来源
 
-开发或构建前会运行 `scripts/prepare-downloads.mjs`：
-
-1. 从实际代码读取 Yandu 版本。
-2. 在 `release/artifacts/` 中寻找三个明确命名的公开发布包。
-3. 与现有 SHA256SUMS 核对后复制到文档下载区。
-4. 缺少的发布包显示为尚未构建，文档站仍可构建。
-
-准备脚本不会复制 `.yandu/`、`.local/`、连接包、数据库或凭据。更新软件发行后，重新构建文档站即可同步下载文件。
+构建前，`prepare-downloads.mjs` 从 release 产物中选择与 SHA256SUMS 一致的包，缺失平台显示尚未构建；`prepare-reference.mjs` 同步公开 OpenAPI。软件发行包先构建完成，再运行文档构建；准备器不复制连接包、数据库或私钥。
 
 ## 部署到子路径
 
@@ -91,20 +56,26 @@ npm --prefix docs-site run preview
 ```bash
 DOCS_BASE=/yandu/ npm --prefix docs-site run build
 DOCS_BASE=/yandu/ npm --prefix docs-site run check
+# 按相同基础路径预览：
+DOCS_BASE=/yandu/ DOCS_PORT=5176 npm --prefix docs-site run preview
 ```
 
 `DOCS_BASE` 必须以 `/` 开始和结束；自定义主题的导航、下载和静态资源也使用该基础路径。
 
-将 dist 内容放入你自己的对应目录，静态服务应支持干净 URL，例如 Nginx：
+将 dist 内容放入对应目录。下面的 Nginx 示例监听 HTTP 80，产物位于 `/var/www/yandu/`：
 
 ```nginx
-location /yandu/ {
-    root /var/www;
+server {
+  listen 80;
+  server_name docs.example.com;
+  root /var/www;
+  location /yandu/ {
     try_files $uri $uri.html $uri/ =404;
+  }
 }
 ```
 
-这个示例要求产物位于 `/var/www/yandu/`；域名、HTTPS 和服务端口由你已有的站点决定。这里只说明文档网站部署，不能把文档服务器当作公网管理入口。
+将域名换成实际文档域名。需要其他 HTTP 端口时改 `listen`，例如 `listen 8080;`；HTTPS 的 443 与证书由已有站点配置提供。检查 `sudo nginx -t` 后执行 `sudo systemctl reload nginx`。静态网站端口由 Nginx 决定，`DOCS_PORT` 只影响本地开发/预览。
 
 ## 维护内容
 

@@ -1,0 +1,6 @@
+-- +goose Up
+ALTER TABLE versions ADD COLUMN stamp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE derivatives ADD COLUMN stamp INTEGER NOT NULL DEFAULT 0;
+-- +goose Down
+ALTER TABLE derivatives DROP COLUMN stamp;
+ALTER TABLE versions DROP COLUMN stamp;

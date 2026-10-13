@@ -1,77 +1,99 @@
 ---
-title: 状态与故障排查
-description: 根据实际应用阶段定位目录、隧道、SSH、Nginx 与外网验证问题。
+title: 存储与连接故障排查
+description: 排查 v0.2 原生组件、固定端口、受管目录、凭证、容量、Tus、媒体与设备离线，兼顾旧网站映射。
 ---
 
-# 状态与故障排查
+# 存储与连接故障排查
 
-先查看项目状态，再查看“操作记录”的失败阶段。组件进程运行与项目真正生效，是不同的结果。
+先确认项目是通用存储还是旧只读映射，再查看管理页项目状态、媒体任务和「操作」记录。管理页在 18765，文档在 5174；本机测试地址和云端回环网关不是同一台机器。
 
-## 项目状态说明
+## 启动与固定端口
 
-| 状态 | 含义 | 下一步 |
-| --- | --- | --- |
-| 未发布 | 草稿，未授权公开 | 核对配置后确认应用 |
-| 有待应用的修改 | 普通修改已保存 | 明确应用新版本 |
-| 正在应用 | 后台正在执行 | 查看操作记录 |
-| 本地配置无效 | 目录、权限或候选配置有误 | 检查目录、ACL 和组件 |
-| 等待隧道 | 代理还未注册 | 检查服务器、TLS 与认证材料 |
-| 等待入口同步 | 配置通道或云端规则未收敛 | 检查 SSH、站点授权与 Nginx |
-| 外网待验证 | 入口已准备，真实资源还未验证 | 检查 DNS/TLS；密码项目输入密码核验 |
-| 已生效 | 当前资源版本通过验证 | 可使用资源 URL |
-| 已停用 | 已完成停用同步 | 文件和路径拒绝保留 |
-| 已阻断 · 待同步 | 本地已阻断，云端尚未收敛 | 修复配置通道，保持阻断 |
-| 正在恢复 | 进程重启后正在核对 | 查看恢复操作结果 |
-| 云端已封禁 | 管理员明确封禁入口 | 由管理员处理，普通应用不能越过 |
+通用存储需要 Agent 18765、存储 API 18770 和独立 SFTPGo 18771。兼容资源与组件管理还使用回环 18766–18769。当前本机端口固定；占用时先核对进程/服务归属。可配置项与修改方法见[端口与监听配置](./ports.md)。
 
-## 目录和权限问题
+macOS 查看占用：
 
-| 错误码 | 检查项 |
-| --- | --- |
-| `PATH_NOT_FOUND` | 路径是否存在、磁盘是否就绪或解锁 |
-| `PATH_OUTSIDE_ROOT` | 是否已明确授权该素材目录，项目是否位于授权范围内 |
-| `ACCESS_DENIED` | LocalService 是否有实际读取或创建目录权限 |
-| `REPARSE_POINT_DENIED` | 路径或祖先中是否存在链接、junction、重解析点 |
-| `URL_AMBIGUOUS` | 配置路径格式及危险文件名/编码 |
-
-不要通过扩大为整盘根目录或放宽 Everyone 权限来绕过这些检查。
-
-## 路由和版本问题
-
-`ROUTE_CONFLICT` 表示前缀重复、互相包含，或仍由旧映射保留。`PAGE_ROUTE_PROTECTED` 表示覆盖了业务路径。查看 [路径映射规则](./routes.md)，必要时明确 [释放旧路径](./lifecycle.md)。
-
-`REVISION_CONFLICT` 表示项目或云端版本已经变化。刷新状态，核对目标配置后重新应用。不要手工编辑 generated 文件冒充数据库目标版本。
-
-## 隧道和配置通道问题
-
-- `COMPONENT_MISSING`：组件缺失，核对完整发布包。
-- `TUNNEL_OFFLINE`：检查 TCP 7000、frps、token、CA、serverName 与证书有效期。
-- `SSH_OFFLINE`：检查实际 SSH 地址、端口与网络。
-- `SSH_HOST_KEY_MISMATCH`：由管理员核对主机变化，再安全重新配对。
-- `CLOUD_AUTH_DENIED`：设备或路径未被云端授权。
-- `CLOUD_BLOCKED`：管理员封禁，不能靠普通重试恢复。
-
-SSH 不可达时，已建立的资源数据通道可以继续运行。新的入口同步仍需要配置通道恢复。
-
-## Nginx 与外网核验问题
-
-`NGINX_CONFIG_INVALID` 会保留旧运行配置并恢复受管磁盘指针；由管理员修复全局配置或 location 冲突后重试。
-
-`CONFIG_DRIFT` 表示受管指针或配置被外部修改，应核对实际差异。
-
-`INGRESS_VERIFY_FAILED` 表示实际入口或随机资源内容没有验证通过。检查域名、HTTPS、资源路径和本机在线状态；网站首页返回 200 并不够。
-
-`PROTECTED_PROBE_REQUIRED` 需要到连接页输入独立资源密码完成验证。
-
-## 导出诊断
-
-点击侧栏“导出诊断”，或执行：
-
-```powershell
-yandu doctor
-yandu status
+```bash
+lsof -nP -iTCP:18765 -iTCP:18770 -iTCP:18771 -sTCP:LISTEN
 ```
 
-诊断导出不包含素材目录、设备私钥、token、明文密码或会话。完整本机错误留在操作记录和状态目录日志中，核对后再决定是否分享。
+Windows PowerShell 查看：
 
-普通待收敛状态每 30 秒重试；草稿、仅保存的普通修改、密码核验及云端封禁不会被自动转为公开成功。
+```powershell
+Get-NetTCPConnection -State Listen | Where-Object LocalPort -in 18765,18770,18771
+Get-Service Yandu,YanduSFTPGo -ErrorAction SilentlyContinue
+```
+
+从源码打开管理页时，使用[开发指南](./development.md)中的实际程序和 `.yandu-storage-dev`。`SESSION_REQUIRED` 或会话过期时用 `ui --require-running` 获取新会话，不手工复制内部令牌。
+
+SFTPGo 缺失或启动失败时核对 2.7.6 原生程序与原始 `templates/email`。当前完整包用 `component-receipt.json` 校验；传统只读组件包没有完整存储/媒体组件。
+
+## 项目与受管目录
+
+| 现象 / 错误 | 检查 |
+| --- | --- |
+| 项目 `applying` | 初始化是后台操作，查看记录，等到 `active` 后操作文件 |
+| `IMPORT_REQUIRED` | 根目录非空；新建空根后显式导入已有文件 |
+| `PATH_NOT_FOUND` / 卷不可用 | 路径、卷挂载、解锁与文件系统 |
+| `ACCESS_DENIED` | 实际服务身份是否能访问正式文件/暂存 |
+| `REPARSE_POINT_DENIED` | 根路径或祖先是否含链接、junction、reparse |
+| `VOLUME_CHANGED` | 卷/容器身份变化，需维护迁移或核验 |
+| `INTEGRITY_QUARANTINE` | 外部修改或链接异常，先恢复/核验，不手改数据库解除 |
+| `PROJECT_DISABLED` | 项目停用或隔离；核对管理页再决定启用 |
+
+开发以当前用户运行；安装版用独立身份。macOS 正式根使用 `/Library/Application Support/Yandu/Storage`，Windows 要求固定 NTFS 卷，安装前由目录脚本设置权限。开发成功不能代替服务身份隔离测试。
+
+## 凭证和项目边界
+
+401 时核对 Bearer 格式、凭证归属及撤销状态。403 `SCOPE_DENIED` 时按[权限表](./storage-files.md#项目凭证)检查操作权限：例如上传状态需要 `upload`，回收站列表需要 `restore`，媒体请求需要 `process`。
+
+凭证不能跨项目，也不能在公共网关调用管理 `/credentials`。浏览器使用业务会话，项目密钥留在服务器。遗失原文后新建并撤销旧凭证。
+
+## 上传、续传和空间
+
+进度 100% 后还在校验入库，查询 `/uploads/{id}`，以 `READY` 为准。`failed` / `cancelled` 必须处理原因，不能继续 PATCH 关闭的上传。
+
+- `IDEMPOTENCY_CONFLICT`：同一键用于不同请求；恢复原逻辑上传参数或为新的逻辑上传创建新键。
+- `UPLOAD_CLOSED`：先查询意图，可能已入库或失败，避免重复创建 Tus。
+- `VERSION_CONFLICT`：并发替换或条目修改，刷新当前版本再决定操作。
+- `NAME_CONFLICT`：同目录已有同名对象，检查是否是响应丢失后重试。
+- 507 `INSUFFICIENT_STORAGE`：同时检查项目配额、活动预留和卷/容器空闲空间；回收站和历史版本也计入已用。
+
+不得直接修改 Tus `.info`、删除正式对象或手改容量统计。恢复和空间维护见[存储维护](./storage-maintenance.md)。
+
+## 媒体任务
+
+`MEDIA_UNAVAILABLE` 时检查 `/capabilities` 的 `mediaReady`，以及是否以 `--no-media` 启动。检查 `tools.json` 的已解析工具路径，重新验证用 `tools prepare`；完整包提供原生候选，详见[依赖检测](./dependency-tools.md)。
+
+任务排队不会阻塞上传入库。查看任务状态、尝试次数和管理端错误；核对输入格式、编码、文件是否损坏，以及工作区预算。预设重复提交不会重置同一版本已失败的任务。
+
+HEIC 必须验证主图、方向及颜色，不能只用 PNG 的成功证明 HEIC 可用。处理与产物行为见[媒体指南](./media.md)。
+
+## 云端网关与设备离线
+
+云端使用 `sudo yandu list`、`sudo yandu disks` 查询项目和磁盘；`--json` 用于监控。缺少配置、旧设备版本或旧连接包需按[监控指南](./cloud-monitoring.md)升级和交付。离线历史快照会标注时间并返回退出码 1，不能用于当前写入判断。
+
+503 `DEVICE_OFFLINE` 说明网关连接不到本机存储，不表示服务器上有可替代的云副本。检查本机在线和 18770、frpc 代理、服务器 7000/TCP、frps、TLS CA/服务器名称与证书有效期。
+
+19090 和 19091 默认保持云端回环。另一台主机或容器要按[云端接入说明](./cloud-startup.md)接入；把客户端的 `127.0.0.1` 填成远端服务地址不会连到云端。
+
+## 删除和恢复
+
+删除后立刻拒绝读取，后台移动尚未完成时恢复可能返回 `OPERATION_PENDING`。查看项目「操作」页，等待后刷新。父目录已删除、同名冲突需要先解决。
+
+回收站默认不自动清空。文件恢复或任务完成不会释放所有历史版本的配额，详见[文件管理](./storage-files.md)。
+
+## 日志与诊断
+
+源码状态在 `.yandu-storage-dev`，SFTPGo 日志在其 `sftpgo/sftpgo.log`；Agent 输出在启动终端。安装版日志及受限状态在系统状态目录，需合适身份访问。
+
+```bash
+.local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" status
+.local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" doctor
+```
+
+Windows 用对应 `.exe` 与 PowerShell 路径。管理页也有「导出诊断」。分享前核对输出及日志，不上传连接包、数据库或私钥作为普通问题附件。
+
+## 旧只读映射
+
+`ROUTE_CONFLICT`、`PAGE_ROUTE_PROTECTED`、SSH、Nginx 或外网版本探针错误属于旧网站路径流程，见[路径映射](./routes.md)、[云端网站](./cloud.md)及[旧映射运维](/reference/operations)。这些条件不是创建 `application_storage` 项目的前提。

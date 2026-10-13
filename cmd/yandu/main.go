@@ -18,12 +18,15 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"yandu/internal/adapters"
 	"yandu/internal/localapi"
 	"yandu/internal/model"
 	"yandu/internal/reconcile"
 	"yandu/internal/resource"
 	"yandu/internal/service"
 	"yandu/internal/state"
+	"yandu/internal/storage"
+	"yandu/internal/toolchain"
 )
 
 var stateDir string
@@ -37,6 +40,83 @@ func main() {
 		args = []string{"ui"}
 	}
 	var err error
+	if args[0] == "tools" {
+		if e := toolchain.Command(args[1:], filepath.Join(stateDir, "tools.json"), "local", os.Stdout, os.Stderr); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "component-sftpgo" {
+		run := func(ctx context.Context) error {
+			exe, e := os.Executable()
+			if e != nil {
+				return e
+			}
+			suffix := ""
+			if runtime.GOOS == "windows" {
+				suffix = ".exe"
+			}
+			binary := filepath.Join(filepath.Dir(exe), "bin", "sftpgo"+suffix)
+			if config, e := toolchain.Load(filepath.Join(stateDir, "tools.json")); e == nil {
+				binary, e = toolchain.Executable(ctx, config, "sftpgo", filepath.Dir(exe))
+				if e != nil {
+					return e
+				}
+			}
+			cmd := exec.CommandContext(ctx, binary, "serve", "--config-dir", filepath.Join(stateDir, "sftpgo"), "--log-file-path", "")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err := cmd.Run()
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		handled, e := service.DispatchNamed("YanduSFTPGo", run)
+		if e == nil && !handled {
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+			e = run(ctx)
+		}
+		if e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "storage-components-verify" {
+		task := flag.NewFlagSet("storage-components-verify", flag.ExitOnError)
+		root := task.String("component-root", "", "native component bundle")
+		task.Parse(args[1:])
+		if e := storage.VerifyComponents(*root); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "storage-bootstrap" {
+		task := flag.NewFlagSet("storage-bootstrap", flag.ExitOnError)
+		root := task.String("component-root", "", "原生完整组件包根目录")
+		task.Parse(args[1:])
+		if err = storage.BootstrapRuntime(context.Background(), stateDir, *root); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "storage-maintenance" {
+		task := flag.NewFlagSet("storage-maintenance", flag.ExitOnError)
+		action := task.String("action", "backup", "backup, restore, verify, migrate")
+		project := task.String("project", "", "项目 ID")
+		dest := task.String("destination", "", "备份或迁移目标")
+		task.Parse(args[1:])
+		if err = storage.Maintenance(context.Background(), stateDir, *action, *project, *dest); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if args[0] == "serve" {
 		handled, e := service.Dispatch(serve)
 		if e != nil {
@@ -74,7 +154,30 @@ func serve(ctx context.Context) error {
 		return fmt.Errorf("Agent 已在运行")
 	}
 	defer lock.Unlock()
-	tokenPath := filepath.Join(stateDir, "local.token")
+	exe, toolErr := os.Executable()
+	if toolErr != nil {
+		return toolErr
+	}
+	toolsConfig := filepath.Join(stateDir, "tools.json")
+	role, noMedia := "readonly", false
+	if previous, e := toolchain.Load(toolsConfig); e == nil {
+		role, noMedia = previous.Role, previous.NoMedia
+	} else if !os.IsNotExist(e) {
+		return e
+	} else if _, e = os.Stat(filepath.Join(stateDir, "storage", "runtime.json")); e == nil {
+		role = "local"
+		noMedia = len(storage.RuntimeMedia(filepath.Join(stateDir, "storage"))) == 0
+	}
+	resolved, toolErr := toolchain.Prepare(ctx, toolchain.Options{Role: role, NoMedia: noMedia, ConfigPath: toolsConfig, ComponentRoot: filepath.Dir(exe), CheckMediaModules: role == "local" && !noMedia})
+	if toolErr != nil {
+		return toolErr
+	}
+	paths := map[string]string{}
+	for name, t := range resolved.Tools {
+		paths[name] = t.Path
+	}
+	adapters.SetToolPaths(paths)
+	tokenPath := managementTokenPath(stateDir)
 	token, err := os.ReadFile(tokenPath)
 	if os.IsNotExist(err) {
 		token = []byte(model.ID() + model.ID())
@@ -93,9 +196,26 @@ func serve(ctx context.Context) error {
 	defer store.Close()
 	e := &reconcile.Engine{Store: store, Dir: stateDir, Ctx: ctx, AdminPassword: model.Hex(token)}
 	defer e.Close()
+	mediaCommand := storage.RuntimeMedia(filepath.Join(stateDir, "storage"))
+	if role == "local" {
+		if noMedia {
+			mediaCommand = nil
+		} else {
+			mediaCommand = []string{resolved.Tools["node"].Path, "--max-old-space-size=512", resolved.MediaWorker}
+		}
+	}
+	storageService, err := storage.Open(ctx, filepath.Join(stateDir, "storage"), storage.RuntimeBackend(filepath.Join(stateDir, "storage")), storage.WithMediaCommand(mediaCommand), storage.WithMediaEnvironment(toolchain.Environment(resolved)), storage.WithInventorySource(store.Read))
+	if err != nil {
+		return err
+	}
+	defer storageService.Close()
+	e.Storage = storageService
+	storageAPI := &http.Server{Addr: model.StorageAddr, Handler: storageService.PublicHandler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
+
 	api := &http.Server{Addr: model.ManagementAddr, Handler: localapi.New(e, string(token)), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
 	guard := &http.Server{Addr: model.GuardAddr, Handler: resource.Guard{Store: store}, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384}
-	errors := make(chan error, 2)
+	errors := make(chan error, 3)
+	go func() { errors <- storageAPI.ListenAndServe() }()
 	go func() { errors <- api.ListenAndServe() }()
 	go func() { errors <- guard.ListenAndServe() }()
 	if err = e.Boot(); err != nil {
@@ -112,12 +232,13 @@ func serve(ctx context.Context) error {
 	}
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	storageAPI.Shutdown(shutdown)
 	api.Shutdown(shutdown)
 	guard.Shutdown(shutdown)
 	return nil
 }
 func request(method, path string, payload any) (json.RawMessage, error) {
-	token, err := os.ReadFile(filepath.Join(stateDir, "local.token"))
+	token, err := os.ReadFile(managementTokenPath(stateDir))
 	if err != nil {
 		return nil, fmt.Errorf("Agent 尚未启动，请运行 yandu ui")
 	}
@@ -340,4 +461,11 @@ func openBrowser(url string) error {
 		c = exec.Command("xdg-open", url)
 	}
 	return c.Start()
+}
+
+func managementTokenPath(dir string) string {
+	if info, e := os.Stat(filepath.Join(dir, "Management")); e == nil && info.IsDir() {
+		return filepath.Join(dir, "Management", "local.token")
+	}
+	return filepath.Join(dir, "local.token")
 }

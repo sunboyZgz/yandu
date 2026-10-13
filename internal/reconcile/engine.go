@@ -20,9 +20,11 @@ import (
 	"yandu/internal/model"
 	"yandu/internal/pathpolicy"
 	"yandu/internal/state"
+	"yandu/internal/storage"
 )
 
 type Engine struct {
+	Storage       *storage.Service
 	Store         *state.Store
 	Dir           string
 	Ctx           context.Context
@@ -49,7 +51,7 @@ func (e *Engine) Save(p model.Project, password string, expected int64) (model.P
 		for i, v := range s.Projects {
 			if v.ID == p.ID {
 				index = i
-				if v.SiteID != p.SiteID || v.ProjectBase != p.ProjectBase {
+				if v.IsStorage() != p.IsStorage() || v.RootPath != p.RootPath && v.IsStorage() || v.SiteID != p.SiteID || v.ProjectBase != p.ProjectBase {
 					return model.Err("ROUTE_OWNERSHIP_CHANGE", "站点或页面基础路径变更请先停用、删除映射并释放旧路径")
 				}
 				if v.Revision != expected {
@@ -159,6 +161,9 @@ func (e *Engine) Queue(id, action string, expected int64, confirm bool) (string,
 	if err != nil {
 		return "", err
 	}
+	if e.Storage != nil && (action == "disable" || action == "remove") {
+		e.Storage.Disable(id)
+	}
 	go e.apply(id, op.ID, action)
 	return op.ID, nil
 }
@@ -232,6 +237,39 @@ func (e *Engine) applyLocked(ctx context.Context, id, op, action string) error {
 	}
 	if p.ID == "" {
 		return model.Err("PROJECT_NOT_FOUND", "项目不存在")
+	}
+	if p.IsStorage() {
+		if e.Storage == nil {
+			return model.Err("STORAGE_UNAVAILABLE", "存储组件尚未配置")
+		}
+		if action == "apply" || action == "retry" && p.Publication == "active" {
+			if err = e.Storage.Configure(ctx, p); err != nil {
+				return err
+			}
+		} else {
+			if err = e.Storage.Disable(id); err != nil {
+				return err
+			}
+		}
+		return e.Store.Update(func(v *model.Snapshot) error {
+			for i := range v.Projects {
+				if v.Projects[i].ID == id {
+					v.Projects[i].Status = p.Publication
+					v.Projects[i].AppliedRevision = v.Projects[i].Revision
+					v.Projects[i].LastError = ""
+				}
+			}
+			if action == "remove" {
+				out := []model.Project{}
+				for _, item := range v.Projects {
+					if item.ID != id {
+						out = append(out, item)
+					}
+				}
+				v.Projects = out
+			}
+			return nil
+		})
 	}
 	if s.Profile != nil {
 		receipt, preflight := e.Call(ctx, *s.Profile, cloudsync.Request{Action: "status", SiteID: p.SiteID})
@@ -668,6 +706,20 @@ func (e *Engine) Boot() error {
 	}); err != nil {
 		return err
 	}
+	if e.Storage != nil {
+		for _, p := range s.Projects {
+			if p.IsStorage() {
+				if p.Publication != "active" {
+					e.Storage.Disable(p.ID)
+				} else if err := e.Storage.Configure(e.Ctx, p); err != nil {
+					e.Storage.Disable(p.ID)
+					e.setStatus(p.ID, "local_invalid", err.Error())
+				} else {
+					e.setStatus(p.ID, "active", "")
+				}
+			}
+		}
+	}
 	// Invalid or unavailable roots stay blocked until a later apply/retry.
 	for i := range s.Effective {
 		if s.Effective[i].Publication == "active" {
@@ -808,7 +860,17 @@ func (e *Engine) RetryLoop() {
 			}
 		}
 		for _, p := range s.Projects {
-			if p.Status == "active" {
+			if p.IsStorage() && p.Status == "active" && e.Storage != nil {
+				ctx, cancel := context.WithTimeout(e.Ctx, 5*time.Second)
+				err := e.Storage.CheckProject(ctx, p.ID)
+				cancel()
+				if err != nil {
+					e.Storage.Disable(p.ID)
+					e.setStatus(p.ID, "local_invalid", err.Error())
+					p.Status = "local_invalid"
+				}
+			}
+			if !p.IsStorage() && p.Status == "active" {
 				if !e.Caddy.Alive() {
 					e.setStatus(p.ID, "recovering", "文件服务正在恢复")
 					p.Status = "recovering"
@@ -902,6 +964,13 @@ func (e *Engine) Import(p model.Profile) error {
 	s, err := e.Store.Read()
 	if err != nil {
 		return err
+	}
+	if e.Storage != nil {
+		for _, project := range s.Projects {
+			if project.IsStorage() {
+				e.Storage.Disable(project.ID)
+			}
+		}
 	}
 	cp, fp, err := e.writeConfigs(s)
 	if err != nil {

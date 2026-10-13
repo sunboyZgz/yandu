@@ -1,0 +1,1859 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Yandu application storage",
+    "version": "0.2.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:19091"
+    }
+  ],
+  "security": [
+    {
+      "ProjectCredential": []
+    }
+  ],
+  "paths": {
+    "/storage/v1/projects/{projectId}/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/capacity": {
+      "get": {
+        "operationId": "getCapacity",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capacity"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/entries": {
+      "get": {
+        "operationId": "listEntries",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parentId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/folders": {
+      "post": {
+        "operationId": "createFolder",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/entries/{entryId}": {
+      "get": {
+        "operationId": "getEntry",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "moveEntry",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInput"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteEntry",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recursive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/trash": {
+      "get": {
+        "operationId": "listTrash",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/trash/{entryId}/restore": {
+      "post": {
+        "operationId": "restoreEntry",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/uploads": {
+      "post": {
+        "operationId": "createUploadIntent",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Intent"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/uploads/{uploadId}": {
+      "get": {
+        "operationId": "getUploadIntent",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "uploadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/objects/{objectId}/versions": {
+      "get": {
+        "operationId": "listVersions",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "objectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/objects/{objectId}/derivatives": {
+      "get": {
+        "operationId": "listDerivatives",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "objectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "processObject",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJob",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/jobs/{jobId}/cancel": {
+      "post": {
+        "operationId": "cancelJob",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/operations": {
+      "get": {
+        "operationId": "listOperations",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/objects/{objectId}/content": {
+      "get": {
+        "operationId": "downloadObject",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "versionId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "objectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Streaming content. Use the raw response body for large files.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "downloadObjectHead",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "versionId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "objectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Streaming content. Use the raw response body for large files.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/v1/projects/{projectId}/derivatives/{derivativeId}": {
+      "get": {
+        "operationId": "downloadDerivative",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "versionId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "derivativeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Streaming content. Use the raw response body for large files.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "downloadDerivativeHead",
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "versionId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Range",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "derivativeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Streaming content. Use the raw response body for large files.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Storage error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Entry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "file"
+            ]
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "generation": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "parentId",
+          "name",
+          "kind",
+          "versionId",
+          "deletedAt",
+          "generation",
+          "size"
+        ]
+      },
+      "EntryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "Intent": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "length": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "expectedVersionId": {
+            "type": "string"
+          },
+          "processing": {
+            "type": "object",
+            "properties": {
+              "presets": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "thumbnail-256-v1",
+                    "webp-1280-v1",
+                    "video-cover-v1",
+                    "mp4-720-v1",
+                    "hls-720-v1"
+                  ]
+                }
+              },
+              "outputConstraints": {
+                "$ref": "#/components/schemas/OutputConstraints"
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "name",
+          "length"
+        ]
+      },
+      "IntentResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "tusEndpoint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tusEndpoint"
+        ]
+      },
+      "IntentStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobReference"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "objectId",
+          "versionId",
+          "state",
+          "error"
+        ]
+      },
+      "FolderInput": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "parentId",
+          "name"
+        ]
+      },
+      "MoveInput": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "expectedGeneration": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "parentId",
+          "name",
+          "expectedGeneration"
+        ]
+      },
+      "ProcessInput": {
+        "type": "object",
+        "properties": {
+          "objectId": {
+            "type": "string"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expectedVersionId": {
+            "type": "string"
+          },
+          "outputConstraints": {
+            "$ref": "#/components/schemas/OutputConstraints"
+          }
+        },
+        "required": [
+          "objectId",
+          "presets"
+        ]
+      },
+      "Capacity": {
+        "type": "object",
+        "properties": {
+          "quotaBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "usedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reservedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "freeBytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "quotaBytes",
+          "usedBytes",
+          "reservedBytes",
+          "freeBytes"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/JobError"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Rows": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "tus": {
+            "type": "string"
+          },
+          "range": {
+            "type": "boolean"
+          },
+          "versions": {
+            "type": "boolean"
+          },
+          "trash": {
+            "type": "boolean"
+          },
+          "mediaReady": {
+            "type": "boolean"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputConstraintCapabilities": {
+            "$ref": "#/components/schemas/OutputConstraintCapabilities"
+          }
+        },
+        "required": [
+          "tus",
+          "range",
+          "versions",
+          "trash",
+          "mediaReady",
+          "presets"
+        ]
+      },
+      "OverflowRequest": {
+        "type": "object",
+        "properties": {
+          "onOverflow": {
+            "type": "string",
+            "enum": [
+              "reject",
+              "keep-start"
+            ]
+          }
+        },
+        "required": [
+          "onOverflow"
+        ],
+        "additionalProperties": false
+      },
+      "OutputConstraints": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/OverflowRequest"
+        }
+      },
+      "MediaPolicy": {
+        "type": "object",
+        "properties": {
+          "mp4MaxFileBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "mp4MaxFileBytes"
+        ]
+      },
+      "AppliedConstraints": {
+        "type": "object",
+        "properties": {
+          "maxFileBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "onOverflow": {
+            "type": "string",
+            "enum": [
+              "reject",
+              "keep-start"
+            ]
+          }
+        },
+        "required": [
+          "maxFileBytes",
+          "onOverflow"
+        ]
+      },
+      "JobReference": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "sourceVersionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "preset",
+          "sourceVersionId"
+        ]
+      },
+      "ProcessResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobReference"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "jobs"
+        ]
+      },
+      "MediaResult": {
+        "type": "object",
+        "properties": {
+          "derivativeId": {
+            "type": "string"
+          },
+          "originalDurationSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "fullCompressedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outputDurationSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "outputBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outputSha256": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "trimmed": {
+            "type": "boolean"
+          },
+          "retainedRange": {
+            "type": "object",
+            "properties": {
+              "startSeconds": {
+                "type": "number",
+                "format": "double"
+              },
+              "endSeconds": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "required": [
+              "startSeconds",
+              "endSeconds"
+            ]
+          }
+        },
+        "required": [
+          "derivativeId",
+          "originalDurationSeconds",
+          "fullCompressedBytes",
+          "outputDurationSeconds",
+          "outputBytes",
+          "outputSha256",
+          "mime",
+          "trimmed",
+          "retainedRange"
+        ]
+      },
+      "JobError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "JobDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "sourceVersionId": {
+            "type": "string"
+          },
+          "sourceSha256": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "processingVersion": {
+            "type": "string"
+          },
+          "policyRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "appliedConstraints": {
+            "$ref": "#/components/schemas/AppliedConstraints"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "result": {
+            "$ref": "#/components/schemas/MediaResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/JobError"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "objectId",
+          "sourceVersionId",
+          "preset",
+          "processingVersion",
+          "policyRevision",
+          "attempts"
+        ]
+      },
+      "PresetConstraintCapability": {
+        "type": "object",
+        "properties": {
+          "supportsMaxFileBytes": {
+            "type": "boolean"
+          },
+          "constraintScope": {
+            "type": "string"
+          },
+          "configuredMaxFileBytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "maxAllowedFileBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overflowPolicies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "reject",
+                "keep-start"
+              ]
+            }
+          },
+          "policyRevision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "supportsMaxFileBytes",
+          "overflowPolicies"
+        ]
+      },
+      "OutputConstraintCapabilities": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "presets": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PresetConstraintCapability"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "presets"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "ProjectCredential": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
