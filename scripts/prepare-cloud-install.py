@@ -43,11 +43,21 @@ def prepare(root: Path, stage: Path) -> None:
         check=True,
     )
     print("正在检查 frps；优先复用已有组件，缺少时下载并校验…", flush=True)
-    result = subprocess.check_output(
-        [str(cloud), "tools", "prepare", "--role", "cloud", "--component-root", str(root),
-         "--config", str(stage / "preparation-tools.json"), "--json"],
-        cwd=root, text=True,
-    )
+    # Keep verified downloads and resolved paths across failed/repeated runs.
+    # Only the compiled installer and terminal handoff use temporary staging.
+    config = root / ".local/cloud-install/tools.json"
+    try:
+        result = subprocess.check_output(
+            [str(cloud), "tools", "prepare", "--role", "cloud", "--component-root", str(root),
+             "--config", str(config), "--json"],
+            cwd=root, text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "frps 准备失败；检查上方下载地址的出站 HTTPS、DNS 或代理后重试。"
+            "也可将匹配依赖锁的 Linux x64 frps 放到仓库 bin/frps，或使用完整 Linux 发布包。"
+            f"已校验缓存保留在 {config.parent}。"
+        ) from error
     tool = json.loads(result)["tools"]["frps"]
     binary = stage / "bin/frps"
     binary.parent.mkdir()

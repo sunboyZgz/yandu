@@ -63,7 +63,7 @@ func Command(args []string, defaultConfig, defaultRole string, out, errOut io.Wr
 			}
 			explicit[n] = p
 		}
-		c, e := Prepare(ctx, Options{Role: *role, ConfigPath: *config, ComponentRoot: *root, NoMedia: *noMedia, Overrides: explicit})
+		c, e := Prepare(ctx, Options{Role: *role, ConfigPath: *config, ComponentRoot: *root, NoMedia: *noMedia, Overrides: explicit, Progress: errOut})
 		if e != nil {
 			return e
 		}

@@ -71,6 +71,8 @@ HEIC 必须验证主图、方向及颜色，不能只用 PNG 的成功证明 HEI
 
 ## 云端网关与设备离线
 
+首次安装出现 `frps unavailable: context deadline exceeded` 时，按[frps 下载超时](./dependency-tools.md#frps-下载超时)检查出站下载或预置离线组件，再重跑安装命令。
+
 云端使用 `sudo yandu list`、`sudo yandu disks` 查询项目和磁盘；`--json` 用于监控。缺少配置、旧设备版本或旧连接包需按[监控指南](./cloud-monitoring.md)升级和交付。离线历史快照会标注时间并返回退出码 1，不能用于当前写入判断。
 
 503 `DEVICE_OFFLINE` 说明网关连接不到本机存储，不表示服务器上有可替代的云副本。检查本机在线和 18770、frpc 代理、服务器 7000/TCP、frps、TLS CA/服务器名称与证书有效期。

@@ -68,7 +68,7 @@ func lockedAsset(name string) (asset, error) {
 	}
 	return asset{}, fmt.Errorf("no binary asset for %s on %s; native source builder or full bundle required", name, target)
 }
-func installTool(ctx context.Context, name, dest, sourceRoot string) (string, error) {
+func installTool(ctx context.Context, name, dest, sourceRoot string, progress io.Writer) (string, error) {
 	a, e := lockedAsset(name)
 	if e != nil {
 		return buildTool(ctx, name, dest, sourceRoot)
@@ -84,36 +84,7 @@ func installTool(ctx context.Context, name, dest, sourceRoot string) (string, er
 	}
 	archive := filepath.Join(dir, filepath.Base(a.URL))
 	if actual, e := hash(archive); e != nil || actual != a.SHA256 {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
-		req, e := http.NewRequestWithContext(ctx, "GET", a.URL, nil)
-		if e != nil {
-			return "", e
-		}
-		res, e := (&http.Client{Timeout: 5 * time.Minute}).Do(req)
-		if e != nil {
-			return "", e
-		}
-		defer res.Body.Close()
-		if res.StatusCode != 200 {
-			return "", fmt.Errorf("tool download HTTP %d", res.StatusCode)
-		}
-		f, e := os.CreateTemp(dir, ".download-")
-		if e != nil {
-			return "", e
-		}
-		tmp := f.Name()
-		defer os.Remove(tmp)
-		h := sha256.New()
-		n, e := io.Copy(io.MultiWriter(f, h), io.LimitReader(res.Body, (1<<30)+1))
-		f.Close()
-		if e != nil {
-			return "", e
-		}
-		if n > 1<<30 || hex.EncodeToString(h.Sum(nil)) != a.SHA256 {
-			return "", fmt.Errorf("upstream tool archive SHA256 mismatch")
-		}
-		if e = os.Rename(tmp, archive); e != nil {
+		if e = downloadArchive(ctx, a, archive, &http.Client{Timeout: 5 * time.Minute}, progress); e != nil {
 			return "", e
 		}
 	}
@@ -141,6 +112,78 @@ func installTool(ctx context.Context, name, dest, sourceRoot string) (string, er
 		suffix = ".exe"
 	}
 	return findExecutable(extracted, name+suffix)
+}
+
+func downloadArchive(ctx context.Context, a asset, archive string, client *http.Client, progress io.Writer) error {
+	if progress == nil {
+		progress = io.Discard
+	}
+	const attempts = 3
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if e := ctx.Err(); e != nil {
+			return e
+		}
+		fmt.Fprintf(progress, "下载 %s（第 %d/%d 次，每次最长 %s）\n", a.URL, attempt, attempts, client.Timeout)
+		retry, e := downloadAttempt(ctx, a, archive, client)
+		if e == nil {
+			fmt.Fprintf(progress, "下载并校验完成：%s\n", archive)
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if !retry || attempt == attempts {
+			return fmt.Errorf("下载 %s 失败（%d 次尝试）：%w；请检查到该地址的出站 HTTPS、DNS 或代理，或预置组件后重试", a.URL, attempt, e)
+		}
+		fmt.Fprintf(progress, "下载失败：%v；%d 秒后重试。\n", e, attempt)
+		timer := time.NewTimer(time.Duration(attempt) * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	panic("unreachable")
+}
+
+// Only retry network failures and transient HTTP errors. A failed checksum or
+// local write must never publish a payload or be hidden by another download.
+func downloadAttempt(ctx context.Context, a asset, archive string, client *http.Client) (bool, error) {
+	req, e := http.NewRequestWithContext(ctx, http.MethodGet, a.URL, nil)
+	if e != nil {
+		return false, e
+	}
+	res, e := client.Do(req)
+	if e != nil {
+		return true, e
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return res.StatusCode == 408 || res.StatusCode == 429 || res.StatusCode >= 500, fmt.Errorf("HTTP %d", res.StatusCode)
+	}
+	f, e := os.CreateTemp(filepath.Dir(archive), ".download-")
+	if e != nil {
+		return false, e
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	h := sha256.New()
+	n, e := io.Copy(io.MultiWriter(f, h), io.LimitReader(res.Body, (1<<30)+1))
+	closeError := f.Close()
+	if e != nil {
+		if _, local := e.(*os.PathError); local {
+			return false, e
+		}
+		return true, e
+	}
+	if closeError != nil {
+		return false, closeError
+	}
+	if n > 1<<30 || hex.EncodeToString(h.Sum(nil)) != a.SHA256 {
+		return false, fmt.Errorf("upstream tool archive SHA256 mismatch")
+	}
+	return false, os.Rename(tmp, archive)
 }
 func findExecutable(root, name string) (string, error) {
 	var found []string

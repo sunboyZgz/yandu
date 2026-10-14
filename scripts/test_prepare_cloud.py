@@ -48,6 +48,7 @@ class CloudSourcePreparationTests(unittest.TestCase):
                          {"GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0"})
         self.assertIn("cloud", prepare.call_args.args[0])
         self.assertIn("--json", prepare.call_args.args[0])
+        self.assertIn(str(self.root / ".local/cloud-install/tools.json"), prepare.call_args.args[0])
         self.assertEqual((self.stage / "bin/frps").read_bytes(), self.frps.read_bytes())
         for name in ("install-cloud.sh", "install-cloud-storage.sh"):
             self.assertEqual((self.stage / name).read_bytes(), (self.root / "scripts" / name).read_bytes())
@@ -71,6 +72,19 @@ class CloudSourcePreparationTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 cloud.prepare(self.root, self.stage)
         prepare.assert_not_called()
+
+    def test_failed_frps_preparation_explains_recovery_and_keeps_existing_cache(self):
+        cache = self.root / ".local/cloud-install/tools/verified.tar.gz"
+        cache.parent.mkdir(parents=True)
+        cache.write_bytes(b"verified download")
+        with patch.object(cloud, "go_tool", return_value="/tools/go"), \
+             patch.object(cloud.subprocess, "run"), \
+             patch.object(cloud.subprocess, "check_output", side_effect=subprocess.CalledProcessError(1, "tools prepare")), \
+             contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "bin/frps"):
+                cloud.prepare(self.root, self.stage)
+        self.assertEqual(cache.read_bytes(), b"verified download")
+        self.assertFalse((self.stage / "install-cloud.sh").exists())
 
     def test_main_preserves_arguments_and_terminal_then_cleans_staging(self):
         with patch.object(cloud, "prepare") as prepare, \

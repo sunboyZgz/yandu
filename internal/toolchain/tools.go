@@ -256,6 +256,7 @@ type Options struct {
 	Lookup     func(string) (string, error)
 	Check      func(context.Context, string, string) error
 	Install    func(context.Context, string, string) (string, error)
+	Progress   io.Writer
 }
 
 func canonical(path string) (string, error) {
@@ -420,7 +421,7 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 			install := o.Install
 			if install == nil {
 				install = func(ctx context.Context, name, dest string) (string, error) {
-					return installTool(ctx, name, dest, root)
+					return installTool(ctx, name, dest, root, o.Progress)
 				}
 			}
 			path, e := install(ctx, name, filepath.Join(filepath.Dir(o.ConfigPath), "tools"))

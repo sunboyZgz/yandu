@@ -85,3 +85,25 @@ Windows 使用 `.exe`。`list` 只展示记录，可加 `--json`；`prepare` 重
 工具及动态库必须能被实际服务身份读取、执行。普通路径不可用时会验证包内候选，固定路径失败则停止。文件 SHA256 变化需重新准备；配置损坏或 schema 不支持时不会覆盖。
 
 完整包提供离线组件。源码缺失组件时，macOS 构建 HEIC/FFmpeg 需要 Xcode Command Line Tools、CMake、pkg-config；Windows HEIC 需要 Visual Studio C++、CMake/Git，FFmpeg 解包需要 7-Zip。构建器的 `--only heif` / `--only ffmpeg` 可单独准备对应组件。
+
+## frps 下载超时
+
+`frps unavailable: context deadline exceeded` 表示组件准备超时。首次源码安装通常发生在从 GitHub 下载 frp 期间，此时尚未创建云端 Yandu 服务；不是本机客户端未启动，也与入站 7000 端口无关。检查安装输出中的下载地址、出站 HTTPS、DNS 和代理；使用 sudo 时需确认安装进程继承了所需代理环境。
+
+下载最多尝试 3 次，每次最长 5 分钟，终端会显示地址、尝试次数和失败原因。网络恢复后可直接重跑原安装命令。源码准备使用仓库 `.local/cloud-install/` 持久缓存，已校验的组件会保留并复用。
+
+如果云服务器无法访问 GitHub，可使用完整 Linux 发布包，或在能联网的机器下载 [frp 0.71.0 Linux x64 官方归档](https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz)，上传到云端源码仓库根目录，然后执行：
+
+```bash
+(
+  set -e
+  printf '%s  %s\n' \
+    '84f27e39f11169f7adcef8e8b70c9329de17747b1f14dad9fb95eef5682ea716' \
+    'frp_0.71.0_linux_amd64.tar.gz' | sha256sum -c -
+  mkdir -p bin
+  tar -xzf frp_0.71.0_linux_amd64.tar.gz -C bin --strip-components=1 frp_0.71.0_linux_amd64/frps
+  chmod 0755 bin/frps
+)
+```
+
+校验、解压成功后，重新执行原来的 `sudo bash ./install-cloud.sh --mode storage-only ...`。安装器会验证并复用 `bin/frps` 的原生架构和组件版本。此处版本与 SHA256 对应 `release/dependencies.lock.json`；使用其他版本源码时，以该锁文件为准。
