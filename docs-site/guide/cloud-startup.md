@@ -1,8 +1,12 @@
 ---
 title: Linux 云端服务器启动
-description: Ubuntu 云端 frps 与网关的安装、启动、默认端口、连接包和 Docker 接入。
+description: 先确认公网 7000、云端回环 19091 与业务 HTTPS 入口，再完成 Ubuntu 安装、配对和启动检查。
 ---
 
 <!--@include: ../../docs/CLOUD_STARTUP.md-->
 
-后续步骤：[本机安装](./storage-deployment.md)或源码启动（[macOS](./development.md)、[Windows](./development-windows.md)）、[导入连接包](./connection.md)、[完整链路验证](./getting-started.md)。日志、容量与监控凭证更新见[云端监控](./cloud-monitoring.md)。
+## 后续步骤
+
+- [快速开始](./getting-started.md)：选择本机启动方式、导入连接包、创建项目并验证读写。
+- [业务接入](./business-integration.md)：运行业务示例，配置项目凭证与 TypeScript SDK。
+- [云端监控](./cloud-monitoring.md)：查看日志、项目与磁盘容量，更新监控凭证。

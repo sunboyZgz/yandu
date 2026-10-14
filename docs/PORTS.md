@@ -35,13 +35,15 @@ Yandu 会重新生成 Caddy、frpc 和开发后端配置，单独修改这些生
 
 ## 云端 storage-only
 
-| 默认监听地址 | 服务 | 配置位置 / 字段 |
-| --- | --- | --- |
-| `0.0.0.0:7000` | frps 的 TLS 隧道入口 | `/etc/yandu/frps.toml` 的 `bindAddr` / `bindPort` |
-| `127.0.0.1:19090` | frps 存储转发入口 | `proxyBindAddr`、`allowPorts` 和连接包 `storage.remotePort` |
-| `127.0.0.1:19091` | Yandu 业务网关 | `/etc/yandu/gateway.json` 的 `listen` |
+**云安全组与服务器防火墙需放行 7000/TCP，供本机 Yandu 连接。19090、19091 默认仅在云端回环监听，无需开放公网。** 浏览器 / App 使用业务自己的公网入口，通常为 HTTPS 443；storage-only 安装器不创建这个业务入口。
 
-本机设备主动连接云端 `7000`；业务访问网关 `19091`，网关转发到 `19090`。`19090` 在存储代理注册后监听。storage-only 不需要 Nginx，也不依赖网站的 `80/443` 或旧映射的 SSH 配置通道。
+| 默认监听地址 | 谁来访问 / 用途 | 配置位置 / 字段 |
+| --- | --- | --- |
+| `0.0.0.0:7000` | 本机 Yandu 连接云服务器公网 IP:7000，建立 TLS 隧道 | `/etc/yandu/frps.toml` 的 `bindAddr` / `bindPort` |
+| `127.0.0.1:19090` | 云端网关内部使用的 frps 存储转发入口 | `proxyBindAddr`、`allowPorts` 和连接包 `storage.remotePort` |
+| `127.0.0.1:19091` | 云端同机业务服务调用的存储 API 网关 | `/etc/yandu/gateway.json` 的 `listen` |
+
+`19090` 在本机存储代理注册后才监听。业务请求的转发顺序为 `云端业务 → 19091 → 19090 → 隧道 → 本机存储`；7000 用于本机主动建立隧道，不是 HTTP 网站端口。storage-only 自身不需要 Nginx，也不依赖网站的 `80/443` 或旧映射的 SSH 配置通道。
 
 ### 修改业务网关端口
 
@@ -75,7 +77,7 @@ sudo yandu list --timeout 10s
 
 frps 自身支持 `bindPort`，但当前 Yandu 安装器和配对器生成固定的 `serverPort: 7000`，没有 `--server-port` 参数。只改 frps 会导致设备连不上；改变它需要同步修改初始化/安装脚本、配对代码并重新生成和导入连接包。
 
-存储连接包校验明确只允许 `storage.remotePort: 19090`。因此 `19090` 当前不能通过单改 TOML、JSON 或连接包来配置；需要同步修改连接包校验、生成代码和网关上游后再构建。默认部署保持 `7000 → 19090 → 19091`，仅网关业务端口可直接配置。
+存储连接包校验明确只允许 `storage.remotePort: 19090`。因此 `19090` 当前不能通过单改 TOML、JSON 或连接包来配置；需要同步修改连接包校验、生成代码和网关上游后再构建。默认部署保持 7000、19090，仅网关业务端口 19091 可直接配置。
 
 ### 受信内网与 Docker
 

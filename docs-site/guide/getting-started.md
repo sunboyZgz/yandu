@@ -5,9 +5,11 @@ description: 启动云端和本机、导入连接包、创建项目并验证业�
 
 # 快速开始
 
-完整链路：**云端服务 → 本机服务 → 连接与配对 → 存储项目 → 业务读写验证**。云端 frps/网关和本机 Agent/SFTPGo 都需保持运行；本机无需公网 IP。平台发布状态见[验证记录](/reference/storage-verification)。
+操作顺序：**先安装云端并取得连接包 → 再启动本机并导入连接包 → 创建存储项目 → 验证业务读写**。云端安装时，本机无需启动或在线；文件读写时两端都需保持运行。本机无需公网 IP。平台发布状态见[验证记录](/reference/storage-verification)。
 
 ## 1. 启动云端服务器
+
+**先在云安全组和服务器防火墙放行 TCP 7000，供本机 Yandu 建立隧道。** 19090、19091 仅在云端回环监听，无需开放公网；浏览器 / App 访问你自己部署的业务入口（通常为 HTTPS 443）。
 
 在 Ubuntu 24.04 x64 上解压 Linux 包，首次安装：
 
@@ -15,9 +17,9 @@ description: 启动云端和本机、导入连接包、创建项目并验证业�
 sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device owner
 ```
 
-替换成真实服务器 IP。安装器启动 `yandu-frps`、`yandu-gateway`，并生成 `/etc/yandu/owner.yandu-profile`；连接包口令由终端输入。安全交付该包，口令单独传递。
+替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`，并生成 `/etc/yandu/owner.yandu-profile`；终端输入的口令用于加密该包。本机稍后导入时使用同一口令，文件和口令单独交付。
 
-已安装时无需重复安装，用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认 TLS 隧道 `0.0.0.0:7000`、转发 `127.0.0.1:19090`、网关 `127.0.0.1:19091`；19090 在本机注册代理后监听。安装、启动检查与配置方法见[云端服务器启动](./cloud-startup.md)。
+已安装时用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认访问地址与启动检查见[云端服务器启动](./cloud-startup.md)。
 
 ## 2. 启动本机客户端
 
