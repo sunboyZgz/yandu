@@ -11,6 +11,7 @@ https://example.com/blog/xxx/中文%20a.png     → D:/oss/blog/xxx/中文 a.png
 
 新增入口与文档：
 
+- [环境准备与 Ubuntu 云端一键安装](docs/ENVIRONMENT.md)
 - [双平台存储开发、API 与 SDK](docs/STORAGE.md)
 - [本机原生组件包与安装](docs/STORAGE_DEPLOYMENT.md)
 - [Linux 云端服务器启动](docs/CLOUD_STARTUP.md)
@@ -29,7 +30,7 @@ python3 scripts/storage-dev.py --no-media  # 文件存储；完整媒体启动�
 
 云端安装/升级提供 `sudo yandu list`、`sudo yandu disks`、`sudo yandu list --json`：通过独立只读监控凭证查看本机项目、容量及去重后的受管磁盘/APFS 容器。旧部署需更新两端程序和监控连接包，离线快照明确标注采样时间。步骤见[云端命令行与容量监控](docs-site/guide/cloud-monitoring.md)。
 
-云端也支持从源码仓库直接安装：根目录的 `install-cloud.sh` 会自动准备云端程序与 frps，无需 Node/npm 或预先打包；Go/Python 前提和安装命令见[云端启动](docs/CLOUD_STARTUP.md)。
+云端也支持从源码仓库直接安装：根目录的 `install-cloud.sh` 会自动补齐 Go、Python 和系统依赖，再准备云端程序与 frps，无需 Node/npm 或预先打包。只准备环境可执行 `sudo bash ./setup-cloud-env.sh`，见[环境准备](docs/ENVIRONMENT.md)与[云端启动](docs/CLOUD_STARTUP.md)。
 
 项目级 MP4 压缩支持固定字节上限、上传时明确的超限策略、原件完整保留、精确任务查询和实测产物摘要；用法见[媒体指南](docs-site/guide/media.md)，实际结果与待验收项见[压缩验收记录](docs/MEDIA_ACCEPTANCE.md)。
 

@@ -2,6 +2,8 @@
 
 云端需要 frps；本机需要 SFTPGo、Caddy、frpc，启用媒体时增加 Node、FFmpeg、FFprobe 和 HEIC 解码器。
 
+首次部署先看[环境准备与一键安装](ENVIRONMENT.md)。Ubuntu 云端源码安装自动准备所需环境，也可在仓库根目录单独执行 `sudo bash ./setup-cloud-env.sh`。
+
 ## 运行时最低版本
 
 | 运行时 | 最低要求 | 使用场景 |
@@ -13,6 +15,8 @@
 这些运行时不设版本上限，也不因已有版本更新而要求降级。Go 的最低版本语义见[官方说明](https://go.dev/doc/toolchain)；Node 下限满足当前 [Vite 7 的构建要求](https://v7.vite.dev/guide/migration#node-js-support)。完整安装包运行时不需要另装 Go 或 Python。
 
 云端 storage-only 可直接在源码仓库根目录运行 `sudo bash ./install-cloud.sh ...`，仅使用 Go/Python 准备云端程序和 frps，不构建前端或安装 Node/npm。
+
+云端源码准备优先复用 PATH 或 `/usr/local/go/bin/go` 中满足最低版本的 Go；缺少时在 `/usr/local/lib/yandu-env/` 安装经官方 SHA256 校验的副本，后续安装自动使用该路径。
 
 `storage-components.lock.json` 中 Node 的 `minimumVersion` 控制已有运行时的准入，`version` 与 SHA256 控制缺失时下载的固定副本。发布包和 CI 使用具体版本以复现构建，不限制使用者安装更高版本的运行时。服务组件如 frp、SFTPGo 和媒体原生工具仍按组件契约验证。
 

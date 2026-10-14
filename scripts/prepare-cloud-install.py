@@ -12,19 +12,18 @@ import subprocess
 import sys
 import tempfile
 
+from cloud_env import find_go, minimum_go
+
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def go_tool() -> str:
-    found = shutil.which("go")
+    minimum = minimum_go(ROOT)
+    found = find_go(minimum)
     if found:
-        return found
-    # sudo's default PATH commonly omits the official Go installation.
-    standard = Path("/usr/local/go/bin/go")
-    if standard.is_file() and os.access(standard, os.X_OK):
-        return str(standard)
-    raise RuntimeError("源码安装需要 Go 1.26.2+；请安装 Go，或使用完整 Linux 云端发布包。")
+        return found[0]
+    raise RuntimeError(f"源码安装需要 Go {minimum}+；请先运行 sudo bash ./setup-cloud-env.sh。")
 
 
 def digest(path: Path) -> str:
@@ -40,7 +39,7 @@ def prepare(root: Path, stage: Path) -> None:
     print("正在从源码编译云端程序（Go 最低版本由 go.mod 校验）…", flush=True)
     subprocess.run(
         [go_tool(), "build", "-trimpath", "-ldflags=-s -w", "-o", str(cloud), "./cmd/yandu-cloud"],
-        cwd=root, env={**os.environ, "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0"},
+        cwd=root, env={**os.environ, "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0", "GOTOOLCHAIN": "local"},
         check=True,
     )
     print("正在检查 frps；优先复用已有组件，缺少时下载并校验…", flush=True)

@@ -19,7 +19,7 @@ const links = [
         <p class="hero-intro">通过私有隧道，为业务提供本地文件存储。</p>
         <div class="hero-actions">
           <a class="docs-button primary" :href="withBase('/guide/getting-started')">完整链路入门 <span aria-hidden="true">↗</span></a>
-          <a class="docs-button secondary" :href="withBase('/guide/cloud-startup')">云端启动</a>
+          <a class="docs-button secondary" :href="withBase('/guide/environment')">环境准备</a>
         </div>
         <div class="home-development-links">
           <a class="home-development-link" :href="withBase('/guide/development')">macOS 开发模式 <span aria-hidden="true">↗</span></a>

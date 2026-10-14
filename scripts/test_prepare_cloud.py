@@ -92,9 +92,13 @@ class CloudSourcePreparationTests(unittest.TestCase):
         self.assertFalse(prepare.call_args.args[1].exists())
 
     def test_missing_go_explains_prerequisite(self):
-        with patch.object(cloud.shutil, "which", return_value=None), patch.object(Path, "is_file", return_value=False):
+        with patch.object(cloud, "find_go", return_value=None):
             with self.assertRaisesRegex(RuntimeError, r"Go 1\.26\.2\+"):
                 cloud.go_tool()
+
+    def test_newer_go_is_selected_by_the_shared_resolver(self):
+        with patch.object(cloud, "find_go", return_value=("/private/go/bin/go", "1.27.1")):
+            self.assertEqual(cloud.go_tool(), "/private/go/bin/go")
 
 
 if __name__ == "__main__":

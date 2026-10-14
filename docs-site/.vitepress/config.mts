@@ -21,6 +21,7 @@ export default defineConfig({
       for (const token of state.tokens) for (const child of token.children ?? []) {
         if (child.type === 'link_open' && child.attrGet('href') === 'STORAGE_VERIFICATION.md') child.attrSet('href','/reference/storage-verification')
         if (child.type === 'link_open' && child.attrGet('href') === 'DEPENDENCY_TOOLS.md') child.attrSet('href','/guide/dependency-tools')
+        if (child.type === 'link_open' && child.attrGet('href') === 'ENVIRONMENT.md') child.attrSet('href','/guide/environment')
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('PORTS.md')) child.attrSet('href', child.attrGet('href')!.replace('PORTS.md','/guide/ports'))
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('MEDIA_ACCEPTANCE.md')) child.attrSet('href', child.attrGet('href')!.replace('MEDIA_ACCEPTANCE.md','/reference/media-acceptance'))
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('CLOUD_STARTUP.md')) child.attrSet('href', child.attrGet('href')!.replace('CLOUD_STARTUP.md','/guide/cloud-startup'))
@@ -36,8 +37,9 @@ export default defineConfig({
     siteTitle: '檐渡',
     skipToContentLabel: '跳至正文',
     nav: [
-      { text: '使用指南', link: '/guide/getting-started', activeMatch: '^/guide/(?!(?:development(?:-windows)?|cloud-startup|storage-deployment|connection|business-integration)$)' },
+      { text: '使用指南', link: '/guide/getting-started', activeMatch: '^/guide/(?!(?:development(?:-windows)?|environment|cloud-startup|storage-deployment|connection|business-integration)$)' },
       { text: '启动与部署', items: [
+        { text: '环境准备与一键安装', link: '/guide/environment' },
         { text: '云端服务器启动', link: '/guide/cloud-startup' },
         { text: '本机安装（macOS / Windows）', link: '/guide/storage-deployment' },
         { text: '连接与配对', link: '/guide/connection' },
@@ -57,6 +59,7 @@ export default defineConfig({
     sidebar: [
       { text: '开始使用', items: [
         { text: '认识檐渡', link: '/guide/introduction' },
+        { text: '环境准备与一键安装', link: '/guide/environment' },
         { text: '快速开始', link: '/guide/getting-started' },
         { text: '端口与监听配置', link: '/guide/ports' },
       ] },

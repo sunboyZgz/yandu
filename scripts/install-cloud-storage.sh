@@ -26,8 +26,13 @@ fi
 for account in yandu-frps yandu-gateway;do ! id "$account" >/dev/null 2>&1 || { echo "同名账号已存在，拒绝接管" >&2;exit 1; };done
 if [[ ! -x $YANDU_SOURCE/yandu-cloud || ! -x $YANDU_SOURCE/bin/frps ]];then
  if [[ -f $YANDU_SOURCE/../go.mod && -d $YANDU_SOURCE/../cmd/yandu-cloud && -f $YANDU_SOURCE/prepare-cloud-install.py ]];then
-  YANDU_PYTHON="$(command -v python3 || command -v python || true)"
-  [[ -n $YANDU_PYTHON ]] || { echo '源码安装需要 Python 3.10+；也可使用完整 Linux 云端发布包。' >&2;exit 1; }
+  echo '检测到源码仓库，先准备 Ubuntu 云端环境…'
+  bash "$YANDU_SOURCE/setup-cloud-env.sh"
+  YANDU_PYTHON=
+  for YANDU_CANDIDATE in "$(command -v python3 || true)" /usr/bin/python3 "$(command -v python || true)";do
+   if [[ -n $YANDU_CANDIDATE && -x $YANDU_CANDIDATE ]] && "$YANDU_CANDIDATE" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1;then YANDU_PYTHON=$YANDU_CANDIDATE;break;fi
+  done
+  [[ -n $YANDU_PYTHON ]] || { echo '未找到 Python 3.10+，环境准备未完成。' >&2;exit 1; }
   exec "$YANDU_PYTHON" "$YANDU_SOURCE/prepare-cloud-install.py" --server "$SERVER" --device "$DEVICE"
  fi
 fi

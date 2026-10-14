@@ -14,7 +14,7 @@ SCRIPTS = Path(__file__).resolve().parent
 class CloudInstallPreflightTests(unittest.TestCase):
     def run_installer(self, version="26.04", distribution="ubuntu", system="Linux",
                       architecture="x86_64", missing=None, source=False,
-                      dry_run=True, python_available=True, existing=False):
+                      dry_run=True, python_available=True, existing=False, environment_ok=True):
         with tempfile.TemporaryDirectory(prefix="yandu cloud preflight ") as temporary:
             stage = Path(temporary)
             commands = stage / "commands"
@@ -32,6 +32,7 @@ class CloudInstallPreflightTests(unittest.TestCase):
             self.assertIn(". /etc/os-release", installer)
             installer = installer.replace(". /etc/os-release", ". " + shlex.quote(str(release)))
             installer = installer.replace("$EUID", "0")
+            installer = installer.replace("/usr/bin/python3", str(stage / "missing-system-python"))
             # Isolate ownership checks as well as OS facts. Non-dry-run cases
             # stop at the source handoff and never run an installer on the host.
             managed = stage / "etc/yandu"
@@ -46,6 +47,8 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 (stage / "go.mod").write_text("module fixture\ngo 1.26.2\n")
                 (stage / "cmd/yandu-cloud").mkdir(parents=True)
                 shutil.copyfile(SCRIPTS / "prepare-cloud-install.py", scripts / "prepare-cloud-install.py")
+                (scripts / "setup-cloud-env.sh").write_text(
+                    "echo 'environment preparation'\nexit " + ("0" if environment_ok else "1") + "\n")
             for name in ("bash", "dirname"):
                 (commands / name).symlink_to(shutil.which(name))
             uname = commands / "uname"
@@ -108,6 +111,7 @@ class CloudInstallPreflightTests(unittest.TestCase):
         result = self.run_installer(source=True, dry_run=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("source preparation:", result.stdout)
+        self.assertLess(result.stdout.index("environment preparation"), result.stdout.index("source preparation:"))
         self.assertIn("prepare-cloud-install.py", result.stdout)
         self.assertIn("<--server><203.0.113.10><--device><owner>", result.stdout)
         self.assertNotIn("unexpectedly invoked", result.stderr)
@@ -116,6 +120,13 @@ class CloudInstallPreflightTests(unittest.TestCase):
         result = self.run_installer(source=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("storage-only", result.stdout)
+        self.assertNotIn("source preparation:", result.stdout)
+        self.assertNotIn("environment preparation", result.stdout)
+
+    def test_failed_environment_never_builds_or_installs(self):
+        result = self.run_installer(source=True, dry_run=False, environment_ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("environment preparation", result.stdout)
         self.assertNotIn("source preparation:", result.stdout)
 
     def test_missing_python_explains_source_prerequisite(self):
@@ -128,6 +139,7 @@ class CloudInstallPreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("已有安装", result.stderr)
         self.assertNotIn("source preparation:", result.stdout)
+        self.assertNotIn("environment preparation", result.stdout)
 
 
 if __name__ == "__main__":
