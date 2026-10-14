@@ -11,7 +11,7 @@ description: macOS Apple Silicon 的源码启动、端口、测试目录、状�
 
 | 项目 | 要求 / 位置 |
 | --- | --- |
-| 开发工具 | Go 1.26.2、Python 3.12+、Xcode Command Line Tools |
+| 开发工具 | Go 1.26.2+、Python 3.12+、Xcode Command Line Tools |
 | 补齐媒体组件时 | CMake、pkg-config |
 | 程序 | `.local/bin/yandu` |
 | 状态 | `.yandu-storage-dev` |

@@ -11,13 +11,13 @@ description: 启动云端和本机、导入连接包、创建项目并验证业�
 
 **先在云安全组和服务器防火墙放行 TCP 7000，供本机 Yandu 建立隧道。** 19090、19091 仅在云端回环监听，无需开放公网；浏览器 / App 访问你自己部署的业务入口（通常为 HTTPS 443）。
 
-在 Ubuntu 24.04 x64 上解压 Linux 包，首次安装：
+通用存储安装器接受 **Ubuntu 24.04 及更新版本的 x64 系统，包括 26.04**，并检查必要系统命令。解压完整 Linux 云端发布包，在包含 `install-cloud.sh`、`yandu-cloud` 和 `bin/frps` 的目录首次安装；不要直接执行源码仓库的 `scripts/install-cloud.sh`：
 
 ```bash
 sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device owner
 ```
 
-替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`，并生成 `/etc/yandu/owner.yandu-profile`；终端输入的口令用于加密该包。本机稍后导入时使用同一口令，文件和口令单独交付。
+替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`；随后终端显示 `连接包口令（至少 12 字符）：`，输入口令并按 Enter，输入时不回显字符。生成的连接包位于 `/etc/yandu/owner.yandu-profile`，本机稍后导入时使用同一口令，文件和口令单独交付。
 
 已安装时用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认访问地址与启动检查见[云端服务器启动](./cloud-startup.md)。
 

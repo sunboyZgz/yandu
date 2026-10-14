@@ -13,7 +13,7 @@ description: Windows 11 x64 的源码启动、端口、NTFS 测试目录和重�
 
 ## 1. 准备工具
 
-使用 Go 1.26.2、Python 3.12+。只有 `py` 启动器时用 `py -3` 替代 `python`。Node/npm 和原生工具按[依赖检测](./dependency-tools.md)准备。
+使用 Go 1.26.2+、Python 3.12+。只有 `py` 启动器时用 `py -3` 替代 `python`。Node/npm 和原生工具按[依赖检测](./dependency-tools.md)准备；运行时只要求最低版本，无需降级已有的更高版本。
 
 补齐 HEIC 需要 Visual Studio C++ Build Tools、CMake、Git，并在 Developer PowerShell 中运行；FFmpeg 的 `.7z` 解包需要 7-Zip。平台验证范围见[记录](/reference/storage-verification)。
 

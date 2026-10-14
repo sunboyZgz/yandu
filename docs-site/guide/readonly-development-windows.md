@@ -13,7 +13,7 @@ description: Windows 11 x64 的只读映射源码启动、开发路径、素材�
 
 ## 1. 准备环境
 
-Windows 11 x64 使用 Go 1.26.2、Python 3.10+。脚本查找 `py`、`python` 或 `python3`；Node/npm 和组件按[依赖检测](./dependency-tools.md)准备。平台实测见[验证记录](/reference/storage-verification)。
+Windows 11 x64 使用 Go 1.26.2+、Python 3.10+。脚本查找 `py`、`python` 或 `python3`；Node/npm 和组件按[依赖检测](./dependency-tools.md)准备。平台实测见[验证记录](/reference/storage-verification)。
 
 ## 2. 一键启动并打开管理页
 

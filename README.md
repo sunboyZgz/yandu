@@ -46,7 +46,7 @@ python3 scripts/storage-dev.py --no-media  # 文件存储；完整媒体启动�
 
 ## 在当前 macOS 上运行
 
-开发环境：Go 1.26.2、Python 3；Node.js 22.23.1/npm 优先复用，缺少时准备 Yandu 私有副本。运行安装包不需要额外安装开发工具。
+开发环境：Go 1.26.2+、Python 3.10+；Node.js 22.12.0+ 稳定版及其 npm 优先复用，缺少时准备 Yandu 私有副本。更高版本无需降级，运行安装包不需要额外安装开发工具。原生媒体组件构建需 Python 3.12+，完整要求见[依赖检测](docs/DEPENDENCY_TOOLS.md)。
 
 ```bash
 make dev
@@ -67,7 +67,7 @@ make dev
 
 ## Windows 原生开发模式
 
-Windows x64 安装 Go 1.26.2 和 Python 3.10+ 后，在源码根目录的普通 PowerShell 中执行；Node.js 22.23.1/npm 优先复用，缺少时自动准备：
+Windows x64 安装 Go 1.26.2+ 和 Python 3.10+ 后，在源码根目录的普通 PowerShell 中执行；Node.js 22.12.0+ 稳定版及其 npm 优先复用，缺少时自动准备：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev.ps1

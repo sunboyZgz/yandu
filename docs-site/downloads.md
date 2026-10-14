@@ -37,7 +37,7 @@ shasum -a 256 yandu-0.2.0-darwin-arm64.tar.gz
 ## 版本与运行条件
 
 - Windows 目标：Windows 11 x64，使用 SCM 和独立服务身份；需在 Windows 原生构建媒体组件。
-- 云端目标：Ubuntu 24.04 x64。storage-only 无需业务域名或 Nginx，使用证书验证的私有隧道；旧只读映射仍沿用网站配置。
+- 通用存储云端：安装器接受 Ubuntu 24.04 及更新版本的 x64 系统，包括 26.04；无需业务域名或 Nginx。旧只读映射仍以 Ubuntu 24.04 为安装基线，沿用网站配置。实际部署验收状态见下方验证记录。
 - macOS 目标：macOS 14+ Apple Silicon，使用 launchd 和独立服务身份。
 - 当前没有 Authenticode、发行签名或 macOS 公证；校验和用于完整性检查，不代表发行者签名。
 

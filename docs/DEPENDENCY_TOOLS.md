@@ -2,13 +2,25 @@
 
 云端需要 frps；本机需要 SFTPGo、Caddy、frpc，启用媒体时增加 Node、FFmpeg、FFprobe 和 HEIC 解码器。
 
+## 运行时最低版本
+
+| 运行时 | 最低要求 | 使用场景 |
+| --- | --- | --- |
+| Go | **1.26.2+** | 源码编译；`go.mod` 的 `go` 行表示最低版本，允许更高版本 |
+| Node.js | **22.12.0+ 稳定版**，附带 npm | 前端、文档构建与媒体 Worker；接受 Node 24、26 等更高主版本 |
+| Python | **3.10+** | 源码启动器；缺失原生媒体组件、需要从源码构建时使用 **3.12+** |
+
+这些运行时不设版本上限，也不因已有版本更新而要求降级。Go 的最低版本语义见[官方说明](https://go.dev/doc/toolchain)；Node 下限满足当前 [Vite 7 的构建要求](https://v7.vite.dev/guide/migration#node-js-support)。完整安装包运行时不需要另装 Go 或 Python。
+
+`storage-components.lock.json` 中 Node 的 `minimumVersion` 控制已有运行时的准入，`version` 与 SHA256 控制缺失时下载的固定副本。发布包和 CI 使用具体版本以复现构建，不限制使用者安装更高版本的运行时。服务组件如 frp、SFTPGo 和媒体原生工具仍按组件契约验证。
+
 ## 检查顺序
 
-1. 检查 PATH 中的工具，验证原生架构、可执行性和锁定版本。
+1. 检查 PATH 中的工具，验证原生架构、可执行性，以及运行时最低版本或服务组件版本。
 2. 检查 `tools.json` 中的路径。
 3. 复用私有缓存或包内离线组件。
 4. 仅下载或构建缺失项，放入 Yandu 私有目录。
-5. 保存绝对路径、版本、来源和 SHA256，供启动器使用。
+5. 保存绝对路径、实际版本、来源和 SHA256，供启动器使用。
 
 不符合要求的已有工具会保留。FFmpeg 需具备 libx264、AAC、MJPEG 编码器、MP4/HLS 封装和 scale/setsar 滤镜。组件版本与校验值由 `release/dependencies.lock.json`、`release/storage-components.lock.json` 锁定。
 

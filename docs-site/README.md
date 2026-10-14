@@ -8,7 +8,7 @@
 
 ## 本地运行
 
-在项目根目录使用 Node.js 22 和 npm：
+在项目根目录使用 Node.js 22.12.0+ 稳定版及其 npm（允许更高主版本）：
 
 ```bash
 npm --prefix docs-site ci

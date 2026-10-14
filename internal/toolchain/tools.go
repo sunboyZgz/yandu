@@ -40,8 +40,9 @@ type Config struct {
 	MediaWorker     string          `json:"mediaWorker,omitempty"`
 }
 type spec struct {
-	Version string
-	Args    []string
+	Version        string
+	MinimumVersion string
+	Args           []string
 }
 
 func specifications() map[string]spec {
@@ -50,18 +51,29 @@ func specifications() map[string]spec {
 	}
 	var rawStorage map[string]json.RawMessage
 	storage := map[string]struct {
-		Version string `json:"version"`
+		Version        string `json:"version"`
+		MinimumVersion string `json:"minimumVersion"`
 	}{}
 	json.Unmarshal(release.Dependencies, &dependencies)
 	json.Unmarshal(release.StorageComponents, &rawStorage)
 	for _, name := range []string{"sftpgo", "node", "ffmpeg", "libheif"} {
 		var v struct {
-			Version string `json:"version"`
+			Version        string `json:"version"`
+			MinimumVersion string `json:"minimumVersion"`
 		}
 		json.Unmarshal(rawStorage[name], &v)
 		storage[name] = v
 	}
-	return map[string]spec{"caddy": {dependencies["caddy"].Version, []string{"version"}}, "frpc": {dependencies["frp"].Version, []string{"--version"}}, "frps": {dependencies["frp"].Version, []string{"--version"}}, "sftpgo": {storage["sftpgo"].Version, []string{"--version"}}, "node": {storage["node"].Version, []string{"--version"}}, "ffmpeg": {storage["ffmpeg"].Version, []string{"-version"}}, "ffprobe": {storage["ffmpeg"].Version, []string{"-version"}}, "heif-thumbnailer": {storage["libheif"].Version, []string{"-v"}}}
+	return map[string]spec{
+		"caddy":            {Version: dependencies["caddy"].Version, Args: []string{"version"}},
+		"frpc":             {Version: dependencies["frp"].Version, Args: []string{"--version"}},
+		"frps":             {Version: dependencies["frp"].Version, Args: []string{"--version"}},
+		"sftpgo":           {Version: storage["sftpgo"].Version, Args: []string{"--version"}},
+		"node":             {Version: storage["node"].Version, MinimumVersion: storage["node"].MinimumVersion, Args: []string{"--version"}},
+		"ffmpeg":           {Version: storage["ffmpeg"].Version, Args: []string{"-version"}},
+		"ffprobe":          {Version: storage["ffmpeg"].Version, Args: []string{"-version"}},
+		"heif-thumbnailer": {Version: storage["libheif"].Version, Args: []string{"-v"}},
+	}
 }
 func names(role string, noMedia bool) ([]string, error) {
 	switch role {
@@ -191,39 +203,44 @@ func output(ctx context.Context, path string, args ...string) (string, error) {
 	return string(b), nil
 }
 func Validate(ctx context.Context, name, path string) error {
+	_, e := inspect(ctx, name, path)
+	return e
+}
+
+func inspect(ctx context.Context, name, path string) (string, error) {
 	s, ok := specifications()[name]
 	if !ok {
-		return fmt.Errorf("unknown tool %s", name)
+		return "", fmt.Errorf("unknown tool %s", name)
 	}
 	info, e := os.Stat(path)
 	if e != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("tool is not a regular executable")
+		return "", fmt.Errorf("tool is not a regular executable")
 	}
 	if e = nativeExecutable(path); e != nil {
-		return e
+		return "", e
 	}
 	v, e := output(ctx, path, s.Args...)
 	if e != nil {
-		return e
+		return "", e
 	}
-	line := strings.SplitN(v, "\n", 2)[0]
-	if !regexp.MustCompile(`(?:^|\s)v?` + regexp.QuoteMeta(s.Version) + `(?:[\s+\-]|$)`).MatchString(line) {
-		return fmt.Errorf("%s requires locked version %s", name, s.Version)
+	version, e := versionFromOutput(name, strings.SplitN(v, "\n", 2)[0], s)
+	if e != nil {
+		return "", e
 	}
 	if name == "ffmpeg" {
 		for flag, required := range map[string][]string{"-encoders": {"libx264", "aac", "mjpeg"}, "-muxers": {"mp4", "hls"}, "-filters": {"scale", "setsar"}} {
 			v, e = output(ctx, path, "-hide_banner", flag)
 			if e != nil {
-				return e
+				return "", e
 			}
 			for _, capability := range required {
 				if !regexp.MustCompile(`\s` + regexp.QuoteMeta(capability) + `(?:\s|,)`).MatchString(v) {
-					return fmt.Errorf("ffmpeg missing %s", capability)
+					return "", fmt.Errorf("ffmpeg missing %s", capability)
 				}
 			}
 		}
 	}
-	return nil
+	return version, nil
 }
 
 type Options struct {
@@ -290,10 +307,6 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 	lookup := o.Lookup
 	if lookup == nil {
 		lookup = exec.LookPath
-	}
-	check := o.Check
-	if check == nil {
-		check = Validate
 	}
 	root, _ := filepath.Abs(o.ComponentRoot)
 	suffix := ""
@@ -365,7 +378,13 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 					return false
 				}
 			}
-			if e = check(ctx, name, path); e != nil {
+			version := specifications()[name].Version
+			if o.Check != nil {
+				e = o.Check(ctx, name, path)
+			} else {
+				version, e = inspect(ctx, name, path)
+			}
+			if e != nil {
 				last = e
 				return false
 			}
@@ -388,7 +407,7 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 				last = e
 				return false
 			}
-			resolved[name] = Tool{Path: path, Version: specifications()[name].Version, SHA256: digest, Source: item.source, Pinned: explicit != ""}
+			resolved[name] = Tool{Path: path, Version: version, SHA256: digest, Source: item.source, Pinned: explicit != ""}
 			return true
 		}
 		for _, item := range list {

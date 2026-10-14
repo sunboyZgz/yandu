@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=22.12.0" },
   "scripts": {
     "predev": "node scripts/prepare-downloads.mjs && node scripts/prepare-reference.mjs",
     "dev": "vitepress dev . --host 127.0.0.1",

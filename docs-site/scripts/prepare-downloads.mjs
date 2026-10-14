@@ -13,7 +13,7 @@ if (!version) throw new Error('无法读取 Yandu 版本')
 const variants = [
   { platform: 'macOS ARM64', role: 'v0.2 完整存储组件包', folder: 'native', suffix: 'darwin-arm64.tar.gz', format: 'TAR.GZ', detail: '原生 SFTPGo、Tus、媒体处理及 launchd 安装脚本；正式身份与生命周期待验收' },
   { platform: 'Windows x64', role: 'v0.2 完整存储组件包', folder: 'native', suffix: 'windows-amd64.zip', format: 'ZIP', detail: '由 Windows 原生构建器产出；包含 SFTPGo、HEIC 和视频组件，需 Windows 11 实测' },
-  { platform: 'Linux x64', role: 'v0.2 云端组件包', folder: '', suffix: 'linux-amd64.tar.gz', format: 'TAR.GZ', detail: '含 storage-only 网关、frps、项目与磁盘清单 CLI；Ubuntu 24.04 系统部署待验收' },
+  { platform: 'Linux x64', role: 'v0.2 云端组件包', folder: '', suffix: 'linux-amd64.tar.gz', format: 'TAR.GZ', detail: '含 storage-only 网关、frps、项目与磁盘清单 CLI；接受 Ubuntu 24.04+，系统部署待验收' },
 ]
 const inventories = new Map()
 for (const folder of new Set(variants.map(item => item.folder))) {

@@ -19,7 +19,7 @@ description: macOS 和 Linux 只读映射源码启动、素材目录、重建与
 | `make dev-serve` | 构建并前台运行，Ctrl+C 停止 |
 | `make dev-build` | 仅构建 |
 
-macOS Apple Silicon 使用 Go 1.26.2、Python 3.10+；Node/npm 和 Caddy/frpc 按[依赖检测](./dependency-tools.md)准备。验证范围见[记录](/reference/storage-verification)。
+macOS Apple Silicon 使用 Go 1.26.2+、Python 3.10+；Node/npm 和 Caddy/frpc 按[依赖检测](./dependency-tools.md)准备。验证范围见[记录](/reference/storage-verification)。
 
 ## 第一次启动并打开工具
 
