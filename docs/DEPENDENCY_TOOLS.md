@@ -8,9 +8,11 @@
 | --- | --- | --- |
 | Go | **1.26.2+** | 源码编译；`go.mod` 的 `go` 行表示最低版本，允许更高版本 |
 | Node.js | **22.12.0+ 稳定版**，附带 npm | 前端、文档构建与媒体 Worker；接受 Node 24、26 等更高主版本 |
-| Python | **3.10+** | 源码启动器；缺失原生媒体组件、需要从源码构建时使用 **3.12+** |
+| Python | **3.10+** | 源码启动器、云端源码安装；缺失原生媒体组件、需要从源码构建时使用 **3.12+** |
 
 这些运行时不设版本上限，也不因已有版本更新而要求降级。Go 的最低版本语义见[官方说明](https://go.dev/doc/toolchain)；Node 下限满足当前 [Vite 7 的构建要求](https://v7.vite.dev/guide/migration#node-js-support)。完整安装包运行时不需要另装 Go 或 Python。
+
+云端 storage-only 可直接在源码仓库根目录运行 `sudo bash ./install-cloud.sh ...`，仅使用 Go/Python 准备云端程序和 frps，不构建前端或安装 Node/npm。
 
 `storage-components.lock.json` 中 Node 的 `minimumVersion` 控制已有运行时的准入，`version` 与 SHA256 控制缺失时下载的固定副本。发布包和 CI 使用具体版本以复现构建，不限制使用者安装更高版本的运行时。服务组件如 frp、SFTPGo 和媒体原生工具仍按组件契约验证。
 

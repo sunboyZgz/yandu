@@ -22,13 +22,20 @@ fi
 if [[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]];then
  [[ -L /usr/local/bin/yandu && $(readlink /usr/local/bin/yandu) == /usr/local/lib/yandu/yandu-cloud ]] || { echo '已有不属于云端 Yandu 的 /usr/local/bin/yandu，停止安装';exit 1; }
 fi
-[[ -x $YANDU_SOURCE/yandu-cloud && -x $YANDU_SOURCE/bin/frps ]] || {
- printf '缺少云端发布包组件：需要可执行的 %s/yandu-cloud 和 %s/bin/frps。\n' "$YANDU_SOURCE" "$YANDU_SOURCE" >&2
- echo '请在解压后的 Linux 云端发布包目录运行 ./install-cloud.sh；源码仓库需先构建发布包，不能直接运行 scripts/ 下的安装器。' >&2
- exit 1
-}
 [[ ! -e /etc/yandu ]] || { echo "已有安装；请使用维护流程扩展或升级，不覆盖现有配置" >&2;exit 1; }
 for account in yandu-frps yandu-gateway;do ! id "$account" >/dev/null 2>&1 || { echo "同名账号已存在，拒绝接管" >&2;exit 1; };done
+if [[ ! -x $YANDU_SOURCE/yandu-cloud || ! -x $YANDU_SOURCE/bin/frps ]];then
+ if [[ -f $YANDU_SOURCE/../go.mod && -d $YANDU_SOURCE/../cmd/yandu-cloud && -f $YANDU_SOURCE/prepare-cloud-install.py ]];then
+  YANDU_PYTHON="$(command -v python3 || command -v python || true)"
+  [[ -n $YANDU_PYTHON ]] || { echo '源码安装需要 Python 3.10+；也可使用完整 Linux 云端发布包。' >&2;exit 1; }
+  exec "$YANDU_PYTHON" "$YANDU_SOURCE/prepare-cloud-install.py" --server "$SERVER" --device "$DEVICE"
+ fi
+fi
+[[ -x $YANDU_SOURCE/yandu-cloud && -x $YANDU_SOURCE/bin/frps ]] || {
+ printf '缺少云端发布包组件：需要可执行的 %s/yandu-cloud 和 %s/bin/frps。\n' "$YANDU_SOURCE" "$YANDU_SOURCE" >&2
+ echo '请使用完整 Linux 云端发布包，或在完整源码仓库根目录运行 ./install-cloud.sh 自动准备组件。' >&2
+ exit 1
+}
 if ! command -v setfacl >/dev/null;then apt-get update;apt-get install -y acl;fi
 install -d -m 0750 /etc/yandu /etc/yandu/tls
 install -d -m 0755 /usr/local/lib/yandu

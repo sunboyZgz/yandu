@@ -9,6 +9,7 @@ check: ui
 	go vet ./...
 	python3 scripts/test_dev.py
 	python3 scripts/test_cloud_install.py
+	python3 scripts/test_prepare_cloud.py
 test-race:
 	go test -race ./...
 dev-build:

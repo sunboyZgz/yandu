@@ -13,7 +13,8 @@ SCRIPTS = Path(__file__).resolve().parent
 
 class CloudInstallPreflightTests(unittest.TestCase):
     def run_installer(self, version="26.04", distribution="ubuntu", system="Linux",
-                      architecture="x86_64", missing=None):
+                      architecture="x86_64", missing=None, source=False,
+                      dry_run=True, python_available=True, existing=False):
         with tempfile.TemporaryDirectory(prefix="yandu cloud preflight ") as temporary:
             stage = Path(temporary)
             commands = stage / "commands"
@@ -25,12 +26,26 @@ class CloudInstallPreflightTests(unittest.TestCase):
             # from the real installer; no privileged installation is performed.
             release = stage / "os-release"
             release.write_text(f"ID={shlex.quote(distribution)}\nVERSION_ID={shlex.quote(version)}\n")
+            scripts = stage / "scripts" if source else stage
+            scripts.mkdir(exist_ok=True)
             installer = (SCRIPTS / "install-cloud-storage.sh").read_text()
             self.assertIn(". /etc/os-release", installer)
             installer = installer.replace(". /etc/os-release", ". " + shlex.quote(str(release)))
             installer = installer.replace("$EUID", "0")
-            (stage / "install-cloud-storage.sh").write_text(installer)
-            shutil.copyfile(SCRIPTS / "install-cloud.sh", stage / "install-cloud.sh")
+            # Isolate ownership checks as well as OS facts. Non-dry-run cases
+            # stop at the source handoff and never run an installer on the host.
+            managed = stage / "etc/yandu"
+            if existing:
+                managed.mkdir(parents=True)
+            installer = installer.replace("[[ ! -e /etc/yandu ]]", f"[[ ! -e {shlex.quote(str(managed))} ]]")
+            installer = installer.replace("[[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]]", "[[ 0 == 1 ]]")
+            (scripts / "install-cloud-storage.sh").write_text(installer)
+            shutil.copyfile(SCRIPTS / "install-cloud.sh", scripts / "install-cloud.sh")
+            if source:
+                shutil.copyfile(SCRIPTS.parent / "install-cloud.sh", stage / "install-cloud.sh")
+                (stage / "go.mod").write_text("module fixture\ngo 1.26.2\n")
+                (stage / "cmd/yandu-cloud").mkdir(parents=True)
+                shutil.copyfile(SCRIPTS / "prepare-cloud-install.py", scripts / "prepare-cloud-install.py")
             for name in ("bash", "dirname"):
                 (commands / name).symlink_to(shutil.which(name))
             uname = commands / "uname"
@@ -40,11 +55,18 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 if name == missing:
                     continue
                 command = commands / name
-                command.write_text(f"#!{bash}\necho 'dry-run unexpectedly invoked {name}' >&2\nexit 99\n")
+                command.write_text(f"#!{bash}\nexit 1\n" if name == "id" else f"#!{bash}\necho 'dry-run unexpectedly invoked {name}' >&2\nexit 99\n")
                 command.chmod(0o755)
+            if python_available:
+                python = commands / "python3"
+                python.write_text(f"#!{bash}\nprintf 'source preparation:'\nprintf '<%s>' \"$@\"\nprintf '\\n'\n")
+                python.chmod(0o755)
+            arguments = [bash, str(stage / "install-cloud.sh"), "--mode", "storage-only",
+                         "--server", "203.0.113.10", "--device", "owner"]
+            if dry_run:
+                arguments.append("--dry-run")
             return subprocess.run(
-                [bash, str(stage / "install-cloud.sh"), "--mode", "storage-only",
-                 "--server", "203.0.113.10", "--device", "owner", "--dry-run"],
+                arguments,
                 env={**os.environ, "PATH": str(commands), "BASH_ENV": "/dev/null"},
                 text=True, capture_output=True, timeout=10,
             )
@@ -81,6 +103,31 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 self.assertIn("缺少云端安装所需命令", result.stderr)
                 self.assertIn(name, result.stderr)
                 self.assertNotIn("unexpectedly invoked", result.stderr)
+
+    def test_repository_root_entry_hands_off_source_preparation(self):
+        result = self.run_installer(source=True, dry_run=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("source preparation:", result.stdout)
+        self.assertIn("prepare-cloud-install.py", result.stdout)
+        self.assertIn("<--server><203.0.113.10><--device><owner>", result.stdout)
+        self.assertNotIn("unexpectedly invoked", result.stderr)
+
+    def test_source_dry_run_never_compiles_or_downloads(self):
+        result = self.run_installer(source=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("storage-only", result.stdout)
+        self.assertNotIn("source preparation:", result.stdout)
+
+    def test_missing_python_explains_source_prerequisite(self):
+        result = self.run_installer(source=True, dry_run=False, python_available=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Python 3.10+", result.stderr)
+
+    def test_existing_installation_rejects_before_source_preparation(self):
+        result = self.run_installer(source=True, dry_run=False, existing=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("已有安装", result.stderr)
+        self.assertNotIn("source preparation:", result.stdout)
 
 
 if __name__ == "__main__":

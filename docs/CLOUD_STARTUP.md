@@ -19,13 +19,20 @@
 
 ## 1. 安装云端服务
 
-**安装前确认：服务器是 Ubuntu 24.04 或更新版本的 x64 系统，并使用完整的 Linux 云端发布包。** 安装器检查 systemd、用户管理和 apt 等必要命令，缺少 ACL 工具时安装 `acl` 包。Ubuntu 26.04 不再因版本号被拒绝；允许安装的范围与实际部署验收状态分别记录在[验证记录](STORAGE_VERIFICATION.md)。
+**安装前确认：服务器是 Ubuntu 24.04 或更新版本的 x64 系统。** 安装器检查 systemd、用户管理和 apt 等必要命令，缺少 ACL 工具时安装 `acl` 包。允许安装的范围与实际部署验收状态见[验证记录](STORAGE_VERIFICATION.md)。
 
-解压发布包，进入包含 `install-cloud.sh`、`yandu-cloud` 和 `bin/frps` 的目录后执行；该命令用于发布包目录，不是源码仓库的 `scripts/` 目录：
+选择一种安装来源，在对应目录执行下方同一条命令：
+
+| 安装来源 | 执行目录 | 前提与准备过程 |
+| --- | --- | --- |
+| **源码仓库** | 仓库根目录 | 需要 Go 1.26.2+、Python 3.10+ 与网络；自动编译云端程序、复用或下载 frps，再安装服务 |
+| Linux 云端发布包 | 解压后的包目录 | 已包含 `yandu-cloud` 和 `bin/frps`，无需安装 Go、Python |
 
 ```bash
 sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device owner
 ```
+
+源码方式也兼容 `sudo bash ./scripts/install-cloud.sh ...`。云端源码安装只准备云端组件，不需要 Node.js、npm 或构建前端；准备失败会停止并显示原因。加上 `--dry-run` 可只预览，不编译、下载或安装。
 
 将示例 IP 换成真实服务器公网 IP。`--device owner` 为将来接入的本机设备指定 ID，可先使用示例值 `owner`；它不是本机 IP 或主机名，也不要求提前启动本机服务。安装器会把这个 ID 和连接材料写入连接包，稍后由本机导入。
 
