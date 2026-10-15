@@ -1,6 +1,7 @@
 package localapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -31,11 +32,13 @@ type session struct {
 	Expires time.Time
 }
 type API struct {
-	Engine   *reconcile.Engine
-	Token    string
-	mu       sync.Mutex
-	Tickets  map[string]time.Time
-	Sessions map[string]session
+	Engine          *reconcile.Engine
+	Token           string
+	mu              sync.Mutex
+	Tickets         map[string]time.Time
+	Sessions        map[string]session
+	pickerMu        sync.Mutex
+	directoryPicker func(context.Context) (string, error)
 }
 
 func New(e *reconcile.Engine, token string) *API {
@@ -200,6 +203,10 @@ func (a *API) dispatch(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	switch {
+	case path == "/directories/browse" && r.Method == "GET":
+		a.browseDirectories(w, r)
+	case path == "/directories/pick" && r.Method == "POST":
+		a.pickDirectory(w, r)
 	case path == "/status" && r.Method == "GET":
 		projects := []model.Project{}
 		for _, p := range s.Projects {

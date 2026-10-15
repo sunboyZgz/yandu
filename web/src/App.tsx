@@ -1,7 +1,20 @@
 import StoragePanel from "./StoragePanel";
+import Modal from "./Modal";
+import DirectoryField from "./DirectoryField";
+import {
+  Field,
+  Required,
+  feedback,
+  focusFirstError,
+  projectIdError,
+  projectNameError,
+  directoryError,
+  directoryNameError,
+} from "./FormField";
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -41,9 +54,9 @@ import {
 } from "lucide-react";
 
 type Project = {
- mode?: string;
- quotaBytes?: number;
- mediaPolicy?: {mp4MaxFileBytes:number};
+  mode?: string;
+  quotaBytes?: number;
+  mediaPolicy?: { mp4MaxFileBytes: number };
   id: string;
   displayName: string;
   siteId: string;
@@ -116,7 +129,8 @@ type Files = {
   path: string;
   root: string;
 };
-type View = "storage" | "overview" | "projects" | "files" | "connection" | "logs";
+type View =
+  "storage" | "overview" | "projects" | "files" | "connection" | "logs";
 let csrf = "";
 async function api<T>(
   path: string,
@@ -146,7 +160,7 @@ const labels: Record<string, string> = {
   unverified: "外网待验证",
   local_invalid: "本地配置无效",
   recovering: "正在恢复",
- cloud_blocked: "云端已封禁",
+  cloud_blocked: "云端已封禁",
 };
 const stageLabels: Record<string, string> = {
   queued: "等待执行",
@@ -180,7 +194,7 @@ const empty: Project = {
   appliedRevision: 0,
 };
 const viewTitles: Record<View, string> = {
- storage: "通用应用存储",
+  storage: "通用应用存储",
   overview: "总览",
   projects: "项目管理",
   files: "目录与文件",
@@ -194,7 +208,7 @@ function Pill({ p }: { p: Project }) {
         "pill " +
         (p.status === "active"
           ? "green"
-          : (p.status.includes("invalid")||p.status==="cloud_blocked")
+          : p.status.includes("invalid") || p.status === "cloud_blocked"
             ? "red"
             : p.status === "draft" || p.status === "disabled"
               ? "neutral"
@@ -204,49 +218,6 @@ function Pill({ p }: { p: Project }) {
       <i />
       {labels[p.status] || p.status}
     </span>
-  );
-}
-function Modal({
-  title,
-  description,
-  children,
-  onClose,
-  wide = false,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-  onClose: () => void;
-  wide?: boolean;
-}) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <section
-        className={"modal " + (wide ? "wide" : "")}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header>
-          <div>
-            <h2>{title}</h2>
-            {description && <p>{description}</p>}
-          </div>
-          <button className="icon-button" aria-label="关闭" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </header>
-        {children}
-      </section>
-    </div>
   );
 }
 function Download(data: unknown, name: string) {
@@ -266,6 +237,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [edit, setEdit] = useState<Project | null>(null);
+  const [newProject, setNewProject] = useState(false);
+  const [storageCreationRequest, setStorageCreationRequest] = useState(0);
   const [confirm, setConfirm] = useState<{
     p: Project;
     action: "apply" | "remove";
@@ -317,9 +290,9 @@ export default function App() {
       }
     }
     void boot();
-    window.addEventListener("hashchange",boot);
+    window.addEventListener("hashchange", boot);
     return () => {
-      window.removeEventListener("hashchange",boot);
+      window.removeEventListener("hashchange", boot);
       live = false;
     };
   }, [refresh]);
@@ -357,6 +330,10 @@ export default function App() {
     }
   }
   function openNew() {
+    setNewProject(true);
+  }
+  function openResourceProject() {
+    setNewProject(false);
     setEdit({
       ...empty,
       siteId: status?.sites[0]?.id || "",
@@ -401,7 +378,9 @@ export default function App() {
       .includes(search.toLowerCase()),
   );
   const active = status.projects.filter((p) => p.status === "active").length;
-  const storageMode = status.projects.some((p) => p.mode === "application_storage");
+  const storageMode = status.projects.some(
+    (p) => p.mode === "application_storage",
+  );
   const pending = status.projects.filter(
     (p) => !["active", "draft", "disabled"].includes(p.status),
   ).length;
@@ -426,7 +405,7 @@ export default function App() {
               { id: "overview", name: "总览", icon: Layers3 },
               { id: "projects", name: "项目管理", icon: FolderOpen },
               { id: "storage", name: "通用应用存储", icon: HardDrive },
-{ id: "files", name: "目录与文件", icon: FileImage },
+              { id: "files", name: "目录与文件", icon: FileImage },
               { id: "connection", name: "服务器连接", icon: Network },
               { id: "logs", name: "操作记录", icon: History },
             ] as const
@@ -499,7 +478,10 @@ export default function App() {
                 <div>
                   <div className="eyebrow">LOCAL FILES, CONNECTED.</div>
                   <h1>屋檐之下，也能抵达。</h1>
-                  <p>为应用连接本地文件。通过私有存储 API 或网站资源路径，按需传输内容。</p>
+                  <p>
+                    为应用连接本地文件。通过私有存储 API
+                    或网站资源路径，按需传输内容。
+                  </p>
                 </div>
                 <button className="primary" onClick={openNew}>
                   <Plus size={17} />
@@ -543,18 +525,35 @@ export default function App() {
                       <Cloud size={27} />
                     </div>
                     <div>
-                      <strong>{storageMode ? "你的业务服务" : status.sites[0]?.domain || "你的网站"}</strong>
+                      <strong>
+                        {storageMode
+                          ? "你的业务服务"
+                          : status.sites[0]?.domain || "你的网站"}
+                      </strong>
                       <p>
-                        {storageMode ? "/storage/v1/projects/" : status.projects[0]?.resourcePrefixes[0] || "/blog/xxx/"}
-                        <span className="filename">{storageMode ? "项目 ID" : "image.png"}</span>
+                        {storageMode
+                          ? "/storage/v1/projects/"
+                          : status.projects[0]?.resourcePrefixes[0] ||
+                            "/blog/xxx/"}
+                        <span className="filename">
+                          {storageMode ? "项目 ID" : "image.png"}
+                        </span>
                       </p>
-                      <span>{storageMode ? "项目凭证保存在业务服务端" : "页面和业务 API 保留原有行为"}</span>
+                      <span>
+                        {storageMode
+                          ? "项目凭证保存在业务服务端"
+                          : "页面和业务 API 保留原有行为"}
+                      </span>
                     </div>
                   </div>
                 </div>
                 <div className="map-footer">
                   <ShieldCheck size={14} />
-                  <span>{storageMode ? "按项目与操作授权，文件按需传输" : "仅显式登记的资源路径进入隧道"}</span>
+                  <span>
+                    {storageMode
+                      ? "按项目与操作授权，文件按需传输"
+                      : "仅显式登记的资源路径进入隧道"}
+                  </span>
                   <span className="map-footer-end">
                     目录不会复制到云端
                     <Check size={13} />
@@ -597,12 +596,19 @@ export default function App() {
               <ProjectTable
                 projects={status.projects.slice(0, 5)}
                 sites={status.sites}
-                onEdit={(p) => { if(p.mode === "application_storage") { setSelected(p.id); setView("storage"); } else setEdit(p); }}
+                onEdit={(p) => {
+                  if (p.mode === "application_storage") {
+                    setSelected(p.id);
+                    setView("storage");
+                  } else setEdit(p);
+                }}
                 onNew={openNew}
                 onApply={(p) => setConfirm({ p, action: "apply" })}
                 onFiles={(p) => {
                   setSelected(p.id);
-                  setView(p.mode === "application_storage" ? "storage" : "files");
+                  setView(
+                    p.mode === "application_storage" ? "storage" : "files",
+                  );
                 }}
                 onDisable={(p) => void action(p, "disable")}
               />
@@ -614,7 +620,8 @@ export default function App() {
                   <div>
                     <h3>连接你的云端服务器</h3>
                     <p>
-                      通用存储可先在本机使用；导入 storage-only 或网站连接包后建立私有隧道。
+                      通用存储可先在本机使用；导入 storage-only
+                      或网站连接包后建立私有隧道。
                     </p>
                   </div>
                   <button onClick={() => setView("connection")}>
@@ -708,12 +715,19 @@ export default function App() {
               <ProjectTable
                 projects={projects}
                 sites={status.sites}
-                onEdit={(p) => { if(p.mode === "application_storage") { setSelected(p.id); setView("storage"); } else setEdit(p); }}
+                onEdit={(p) => {
+                  if (p.mode === "application_storage") {
+                    setSelected(p.id);
+                    setView("storage");
+                  } else setEdit(p);
+                }}
                 onNew={openNew}
                 onApply={(p) => setConfirm({ p, action: "apply" })}
                 onFiles={(p) => {
                   setSelected(p.id);
-                  setView(p.mode === "application_storage" ? "storage" : "files");
+                  setView(
+                    p.mode === "application_storage" ? "storage" : "files",
+                  );
                 }}
                 onDisable={(p) => void action(p, "disable")}
                 onRemove={(p) => setConfirm({ p, action: "remove" })}
@@ -731,10 +745,20 @@ export default function App() {
               />
             </>
           )}
-          {view === "storage" && <StoragePanel projects={status.projects} initialProjectId={selected} csrf={csrf} refresh={refresh} />}
+          {view === "storage" && (
+            <StoragePanel
+              projects={status.projects}
+              initialProjectId={selected}
+              creationRequest={storageCreationRequest}
+              csrf={csrf}
+              refresh={refresh}
+            />
+          )}
           {view === "files" && (
             <FilesView
-              projects={status.projects.filter(p => p.mode!=="application_storage")}
+              projects={status.projects.filter(
+                (p) => p.mode !== "application_storage",
+              )}
               selected={selected}
               onSelected={setSelected}
               notify={notify}
@@ -815,11 +839,62 @@ export default function App() {
           </footer>
         </div>
       </main>
+      {newProject && (
+        <Modal
+          title="新建项目"
+          description="根据文件的使用方式选择项目类型。"
+          onClose={() => setNewProject(false)}
+        >
+          <div className="form-body project-type-options">
+            <button
+              type="button"
+              onClick={() => {
+                setNewProject(false);
+                setStorageCreationRequest((value) => value + 1);
+                setView("storage");
+              }}
+            >
+              <HardDrive size={24} />
+              <span>
+                <strong>通用应用存储</strong>
+                <small>上传、下载、版本与媒体处理。可先在本机使用。</small>
+              </span>
+              <ChevronRight size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={
+                status.sites.length
+                  ? openResourceProject
+                  : () => {
+                      setNewProject(false);
+                      setView("connection");
+                    }
+              }
+            >
+              <Link2 size={24} />
+              <span>
+                <strong>网站资源映射</strong>
+                <small>
+                  {status.sites.length
+                    ? "将本地素材映射到已授权网站的资源路径。"
+                    : "需先导入包含站点授权的连接包，点击前往连接。"}
+                </small>
+              </span>
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </Modal>
+      )}
       {edit && (
         <ProjectForm
           p={edit}
           status={status}
           onClose={() => setEdit(null)}
+          onConnection={() => {
+            setEdit(null);
+            setView("connection");
+          }}
           onSaved={async () => {
             setEdit(null);
             notify("项目已保存，应用后发布资源");
@@ -971,17 +1046,25 @@ function ProjectTable({
                   </div>
                 </td>
                 <td>
-                  {p.mode === "application_storage" ? <><span className="domain-text">通用存储 API</span><code className="route-code">{p.id}</code></> : <>
-                  <span className="domain-text">
-                    {sites.find((s) => s.id === p.siteId)?.domain || p.siteId}
-                  </span>
-                  {p.resourcePrefixes.map((pre) => (
-                    <code className="route-code" key={pre}>
-                      {pre}
-                      <span>*</span>
-                    </code>
-                  ))}
-                  </>}
+                  {p.mode === "application_storage" ? (
+                    <>
+                      <span className="domain-text">通用存储 API</span>
+                      <code className="route-code">{p.id}</code>
+                    </>
+                  ) : (
+                    <>
+                      <span className="domain-text">
+                        {sites.find((s) => s.id === p.siteId)?.domain ||
+                          p.siteId}
+                      </span>
+                      {p.resourcePrefixes.map((pre) => (
+                        <code className="route-code" key={pre}>
+                          {pre}
+                          <span>*</span>
+                        </code>
+                      ))}
+                    </>
+                  )}
                 </td>
                 <td>
                   <Pill p={p} />
@@ -1046,39 +1129,142 @@ function ProjectForm({
   status,
   onClose,
   onSaved,
+  onConnection,
 }: {
   p: Project;
   status: Status;
   onClose: () => void;
   onSaved: () => void;
+  onConnection: () => void;
 }) {
   const [form, setForm] = useState(p);
   const [prefix, setPrefix] = useState(p.resourcePrefixes.join("\n"));
   const [password, setPassword] = useState("");
   const [grant, setGrant] = useState(false);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const set = (key: keyof Project, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
   const site = status.sites.find((s) => s.id === form.siteId);
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  const normalizeRoot = (path: string) => {
+    const normalized = path.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+    return /^[a-z]:/i.test(normalized) ? normalized.toLowerCase() : normalized;
+  };
+  const root = normalizeRoot(form.rootPath);
+  const needsGrant = !status.roots.some(
+    (value) =>
+      root === normalizeRoot(value) ||
+      root.startsWith(normalizeRoot(value) + "/"),
+  );
+  const prefixes = prefix
+    .split(/\n|,/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const passwordRequired = !p.revision || p.accessPolicy !== "basic_auth";
+  function clear(field: string) {
+    setErrors((old) => ({ ...old, [field]: "" }));
     setError("");
+  }
+  function set(key: keyof Project, value: string) {
+    setForm((old) => ({ ...old, [key]: value }));
+    clear(key);
+  }
+  function validate() {
+    const issues: Record<string, string> = {};
+    issues.displayName = projectNameError(form.displayName);
+    issues.id = projectIdError(form.id);
+    if (
+      !p.revision &&
+      status.projects.some((project) => project.id === form.id)
+    )
+      issues.id = "项目标识已存在，请换一个标识";
+    issues.rootPath = directoryError(form.rootPath);
+    if (needsGrant && !grant) issues.grant = "请勾选目录授权后再保存";
+    if (!site) issues.siteId = "请选择已授权站点；没有站点时，请先导入连接包";
+    if (!/^\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+$/.test(form.projectBase))
+      issues.projectBase =
+        "以 / 开头，不以 / 结尾；路径段仅支持字母、数字、下划线和连字符";
+    if (!prefixes.length || prefixes.length > 100)
+      issues.prefix = "请填写 1–100 个资源路径，每行一个";
+    const overlaps = (a: string, b: string) =>
+      a.toLowerCase().startsWith(b.toLowerCase()) ||
+      b.toLowerCase().startsWith(a.toLowerCase());
+    for (const pre of prefixes) {
+      if (!/^\/(?:[A-Za-z0-9_-]+\/)+$/.test(pre)) {
+        issues.prefix =
+          "资源路径须以 / 开头和结尾，路径段仅支持字母、数字、下划线和连字符";
+        break;
+      }
+      if (
+        !pre.startsWith(form.projectBase + "/") ||
+        pre === form.projectBase + "/"
+      ) {
+        issues.prefix =
+          "资源路径须在页面基础路径下再深入一层，例如 /blog/images/";
+        break;
+      }
+      if (
+        site &&
+        !site.allowedPrefixes.some((allowed) => pre.startsWith(allowed))
+      ) {
+        issues.prefix = "资源路径超出站点授权范围，请参考下方的可用路径";
+        break;
+      }
+      if (
+        [
+          ...(site?.protectedPrefixes ?? []),
+          ...["api", "assets", "posts", "_next"].map(
+            (part) => `${form.projectBase}/${part}/`,
+          ),
+        ].some((protectedPath) => overlaps(pre, protectedPath))
+      ) {
+        issues.prefix = "资源路径与受保护的业务路径重叠，请选择其他路径";
+        break;
+      }
+      if (prefixes.filter((other) => overlaps(pre, other)).length > 1) {
+        issues.prefix = "资源路径不能重复或相互包含";
+        break;
+      }
+    }
+    if (form.accessPolicy === "basic_auth") {
+      if (
+        !form.username?.trim() ||
+        new TextEncoder().encode(form.username).length > 80 ||
+        /[:\r\n\0]/.test(form.username)
+      )
+        issues.username = "请填写资源用户名，不能包含冒号或换行，最多 80 字节";
+      const length = new TextEncoder().encode(password).length;
+      if ((passwordRequired || password) && (length < 12 || length > 72))
+        issues.password = "密码须为 12–72 字节；中文等字符占用多个字节";
+    }
+    return Object.fromEntries(
+      Object.entries(issues).filter(([, value]) => value),
+    );
+  }
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const issues = validate();
+    setErrors(issues);
+    setError("");
+    if (Object.keys(issues).length) {
+      focusFirstError(event.currentTarget);
+      return;
+    }
+    setBusy(true);
     try {
-      if (grant) await api("/roots", "POST", { path: form.rootPath });
+      if (needsGrant)
+        await api("/roots", "POST", { path: form.rootPath.trim() });
       await api(
         p.revision ? "/projects/" + p.id : "/projects",
         p.revision ? "PUT" : "POST",
         {
           project: {
             ...form,
-            resourcePrefixes: prefix
-              .split(/\n|,/)
-              .map((p) => p.trim())
-              .filter(Boolean),
+            displayName: form.displayName.trim(),
+            rootPath: form.rootPath.trim(),
+            resourcePrefixes: prefixes,
           },
-          password,
+          password: form.accessPolicy === "basic_auth" ? password : "",
           expectedRevision: p.revision,
         },
       );
@@ -1089,184 +1275,297 @@ function ProjectForm({
       setBusy(false);
     }
   }
+  const props = (field: string) => ({
+    id: `project-${field}`,
+    ...feedback(`project-${field}`, errors[field]),
+  });
   return (
     <Modal
       wide
       title={p.revision ? "编辑资源项目" : "新建资源项目"}
-      description="指定本地目录与网站资源范围，保存后仍需确认应用。"
-      onClose={onClose}
+      description="填写目录与资源范围，保存后再确认应用。标有“必填”的项目需要填写或选择。"
+      busy={busy}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
     >
-      <form onSubmit={save}>
+      <form onSubmit={save} noValidate>
         <div className="form-body">
           {!status.sites.length && (
-            <div className="warning">
-              请先到服务器连接页导入连接包，获取站点及路径授权。
+            <div className="warning" role="status">
+              尚无授权站点，请先导入连接包。
+              <button
+                type="button"
+                className="text-button"
+                onClick={onConnection}
+              >
+                前往服务器连接
+                <ArrowRight size={14} />
+              </button>
             </div>
           )}
-          {error && <div className="warning">{error}</div>}
-          <div className="form-grid">
-            <label>
-              项目名称
-              <input
-                autoFocus
-                required
-                value={form.displayName}
-                placeholder="个人博客"
-                onChange={(e) => set("displayName", e.target.value)}
-              />
-            </label>
-            <label>
-              项目标识
-              <input
-                required
-                disabled={!!p.revision}
-                pattern={"[a-z][a-z0-9\\-]*"}
-                maxLength={48}
-                value={form.id}
-                placeholder="blog"
-                onChange={(e) => set("id", e.target.value)}
-              />
-              <small>小写字母、数字或连字符</small>
-            </label>
-          </div>
-          <label>
-            本地素材目录
-            <div className="input-icon">
-              <Folder size={17} />
-              <input
-                required
-                value={form.rootPath}
-                placeholder="D:/oss/blog"
-                onChange={(e) => set("rootPath", e.target.value)}
-              />
-            </div>
-            <small>
-              服务账号必须具有读取权限；不支持符号链接或网络映射盘。
-            </small>
-          </label>
-          {!status.roots.some(
-            (root) =>
-              form.rootPath === root ||
-              form.rootPath.startsWith(root + "/") ||
-              form.rootPath.startsWith(root + "\\"),
-          ) && (
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={grant}
-                onChange={(e) => setGrant(e.target.checked)}
-              />
-              我授权檐渡管理并读取这个素材目录
-            </label>
-          )}
-          <div className="form-grid">
-            <label>
-              网站站点
-              <select
-                required
-                value={form.siteId}
-                onChange={(e) => set("siteId", e.target.value)}
-              >
-                <option value="">选择已授权站点</option>
-                {status.sites.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.domain} · {s.id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              页面基础路径
-              <input
-                required
-                value={form.projectBase}
-                placeholder="/blog"
-                onChange={(e) => set("projectBase", e.target.value)}
-              />
-              <small>仅用于文件路径转换，页面继续走云端</small>
-            </label>
-          </div>
-          <label>
-            资源路径范围
-            <textarea
-              required
-              rows={3}
-              value={prefix}
-              onChange={(e) => setPrefix(e.target.value)}
-              placeholder="/blog/xxx/"
-            />
-            <small>每行一个，以 / 结尾。仅这些范围会连接到本地。</small>
-          </label>
-          <div className="mapping-preview">
-            <span>路径预览</span>
-            <code>
-              https://{site?.domain || "example.com"}
-              {prefix.split("\n")[0]}image.png
-            </code>
-            <ArrowDownToLine size={14} />
-            <code>
-              {form.rootPath || "D:/oss/blog"}/
-              {prefix.split("\n")[0].replace(form.projectBase + "/", "")}
-              image.png
-            </code>
-          </div>
-          <div className="form-grid">
-            <label>
-              访问权限
-              <select
-                value={form.accessPolicy}
-                onChange={(e) => set("accessPolicy", e.target.value)}
-              >
-                <option value="public_read">公开只读</option>
-                <option value="basic_auth">独立密码保护</option>
-              </select>
-            </label>
-            <label>
-              缓存策略
-              <select
-                value={form.cachePolicy}
-                onChange={(e) => set("cachePolicy", e.target.value)}
-              >
-                <option value="revalidate">每次重验证（默认）</option>
-                <option value="immutable">内容哈希文件，长期缓存</option>
-              </select>
-            </label>
-          </div>
-          {form.accessPolicy === "basic_auth" && (
-            <div className="form-grid">
-              <label>
-                资源用户名
-                <input
-                  required
-                  value={form.username || ""}
-                  onChange={(e) => set("username", e.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-              <label>
-                资源密码
-                <input
-                  type="password"
-                  required={!p.revision || p.accessPolicy !== "basic_auth"}
-                  minLength={12}
-                  maxLength={72}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  placeholder={p.revision ? "留空保留原密码" : "至少 12 个字符"}
-                />
-              </label>
+          {error && (
+            <div className="warning" role="alert">
+              {error}
             </div>
           )}
-          <div className="info-note">
-            <ShieldCheck size={16} />
-            <p>
-              仅发布图片、音频与视频。HTML、JavaScript、SVG 和目录列表会被阻断。
+          {Object.values(errors).some(Boolean) && (
+            <p className="form-error-summary" role="alert">
+              请检查下方标红的内容后再保存。
             </p>
-          </div>
+          )}
+          <fieldset className="form-fields" disabled={busy}>
+            <div className="form-grid">
+              <Field
+                id="project-displayName"
+                label="项目名称"
+                required
+                hint="便于识别的名称，例如“个人博客”。"
+                error={errors.displayName}
+              >
+                <input
+                  {...props("displayName")}
+                  autoFocus
+                  required
+                  value={form.displayName}
+                  placeholder="个人博客"
+                  onChange={(event) => set("displayName", event.target.value)}
+                />
+              </Field>
+              <Field
+                id="project-id"
+                label="项目标识"
+                required
+                hint={
+                  p.revision
+                    ? "创建后不可修改。"
+                    : "以小写字母开头，支持小写字母、数字和连字符，最多 48 位。"
+                }
+                error={errors.id}
+              >
+                <input
+                  {...props("id")}
+                  required
+                  disabled={Boolean(p.revision)}
+                  maxLength={48}
+                  value={form.id}
+                  placeholder="blog"
+                  onChange={(event) => set("id", event.target.value)}
+                />
+              </Field>
+            </div>
+            <DirectoryField
+              id="project-rootPath"
+              label="本地素材目录"
+              value={form.rootPath}
+              csrf={csrf}
+              error={errors.rootPath}
+              disabled={busy}
+              onChange={(path) => {
+                set("rootPath", path);
+                setGrant(false);
+                clear("grant");
+              }}
+              hint="选择已有的素材目录；服务账号需要读取权限，不支持符号链接或网络映射盘。"
+            />
+            {needsGrant && (
+              <div className="form-field">
+                <label className="check-label">
+                  <input
+                    id="project-grant"
+                    type="checkbox"
+                    required
+                    checked={grant}
+                    onChange={(event) => {
+                      setGrant(event.target.checked);
+                      clear("grant");
+                    }}
+                    {...feedback("project-grant", errors.grant)}
+                  />
+                  <span>
+                    我授权檐渡管理并读取这个素材目录
+                    <Required />
+                  </span>
+                </label>
+                <small id="project-grant-hint">
+                  选择文件夹不会自动授权，保存前需要勾选确认。
+                </small>
+                {errors.grant && (
+                  <span id="project-grant-error" className="field-error">
+                    {errors.grant}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="form-grid">
+              <Field
+                id="project-siteId"
+                label="网站站点"
+                required
+                hint={
+                  p.revision
+                    ? "创建后不可修改；变更站点请重新创建映射。"
+                    : "从连接包授予的站点中选择。"
+                }
+                error={errors.siteId}
+              >
+                <select
+                  {...props("siteId")}
+                  required
+                  disabled={Boolean(p.revision)}
+                  value={form.siteId}
+                  onChange={(event) => set("siteId", event.target.value)}
+                >
+                  <option value="">选择已授权站点</option>
+                  {status.sites.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.domain} · {item.id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                id="project-projectBase"
+                label="页面基础路径"
+                required
+                hint={
+                  p.revision
+                    ? "创建后不可修改；变更路径请重新创建映射。"
+                    : "例如 /blog；不以 / 结尾，页面继续走云端。"
+                }
+                error={errors.projectBase}
+              >
+                <input
+                  {...props("projectBase")}
+                  required
+                  disabled={Boolean(p.revision)}
+                  value={form.projectBase}
+                  placeholder="/blog"
+                  onChange={(event) => set("projectBase", event.target.value)}
+                />
+              </Field>
+            </div>
+            <Field
+              id="project-prefix"
+              label="资源路径范围"
+              required
+              hint={`每行一个，以 / 结尾，须比页面基础路径更深。${site ? "站点授权范围：" + site.allowedPrefixes.join("、") : ""}`}
+              error={errors.prefix}
+            >
+              <textarea
+                {...props("prefix")}
+                required
+                rows={3}
+                value={prefix}
+                onChange={(event) => {
+                  setPrefix(event.target.value);
+                  clear("prefix");
+                }}
+                placeholder="/blog/images/"
+              />
+            </Field>
+            <div className="mapping-preview">
+              <span>路径预览</span>
+              <code>
+                https://{site?.domain || "example.com"}
+                {prefixes[0] || "/blog/images/"}image.png
+              </code>
+              <ArrowDownToLine size={14} />
+              <code>
+                {form.rootPath.replace(/[\\/]$/, "") || "本地素材目录"}/
+                {(prefixes[0] || "").replace(form.projectBase + "/", "")}
+                image.png
+              </code>
+            </div>
+            <div className="form-grid">
+              <Field
+                id="project-accessPolicy"
+                label="访问权限"
+                hint="公开只读或使用独立的资源密码。"
+              >
+                <select
+                  id="project-accessPolicy"
+                  value={form.accessPolicy}
+                  onChange={(event) => {
+                    set("accessPolicy", event.target.value);
+                    setPassword("");
+                  }}
+                >
+                  <option value="public_read">公开只读</option>
+                  <option value="basic_auth">独立密码保护</option>
+                </select>
+              </Field>
+              <Field
+                id="project-cachePolicy"
+                label="缓存策略"
+                hint="通常保留默认值；长期缓存适用于内容哈希文件名。"
+              >
+                <select
+                  id="project-cachePolicy"
+                  value={form.cachePolicy}
+                  onChange={(event) => set("cachePolicy", event.target.value)}
+                >
+                  <option value="revalidate">每次重验证（默认）</option>
+                  <option value="immutable">内容哈希文件，长期缓存</option>
+                </select>
+              </Field>
+            </div>
+            {form.accessPolicy === "basic_auth" && (
+              <div className="form-grid">
+                <Field
+                  id="project-username"
+                  label="资源用户名"
+                  required
+                  hint="独立于管理页面的用户名。"
+                  error={errors.username}
+                >
+                  <input
+                    {...props("username")}
+                    required
+                    value={form.username || ""}
+                    onChange={(event) => set("username", event.target.value)}
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field
+                  id="project-password"
+                  label="资源密码"
+                  required={passwordRequired}
+                  hint={
+                    passwordRequired
+                      ? "12–72 字节；英文和数字每位占 1 字节。"
+                      : "选填，留空保留原密码；修改时须为 12–72 字节。"
+                  }
+                  error={errors.password}
+                >
+                  <input
+                    {...props("password")}
+                    type="password"
+                    required={passwordRequired}
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      clear("password");
+                    }}
+                    autoComplete="new-password"
+                    placeholder={
+                      passwordRequired ? "设置独立资源密码" : "留空保留原密码"
+                    }
+                  />
+                </Field>
+              </div>
+            )}
+            <div className="info-note">
+              <ShieldCheck size={16} />
+              <p>
+                仅发布图片、音频与视频。HTML、JavaScript、SVG
+                和目录列表会被阻断。
+              </p>
+            </div>
+          </fieldset>
         </div>
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" disabled={busy} onClick={onClose}>
             取消
           </button>
           <button
@@ -1279,7 +1578,7 @@ function ProjectForm({
             ) : (
               <Check size={16} />
             )}
-            保存项目
+            {busy ? "正在保存…" : "保存项目"}
           </button>
         </div>
       </form>
@@ -1305,6 +1604,7 @@ function ConfirmProject({
   return (
     <Modal
       title={action === "apply" ? "确认发布这些资源" : "删除项目映射"}
+      busy={busy}
       description={
         action === "apply"
           ? "应用将更新本地服务、资源隧道和云端入口。"
@@ -1345,7 +1645,9 @@ function ConfirmProject({
         )}
       </div>
       <div className="modal-actions">
-        <button onClick={onClose}>取消</button>
+        <button disabled={busy} onClick={onClose}>
+          取消
+        </button>
         <button
           className={action === "apply" ? "primary" : "danger"}
           disabled={busy || (action === "apply" && !accepted)}
@@ -1380,34 +1682,47 @@ function FilesView({
   const [files, setFiles] = useState<Files>();
   const [error, setError] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
+  const [folderError, setFolderError] = useState("");
+  const loadSequence = useRef(0);
   const [busy, setBusy] = useState(false);
   const id = selected || projects[0]?.id;
   const p = projects.find((p) => p.id === id);
   const load = useCallback(async () => {
     if (!id) return;
+    const sequence = ++loadSequence.current;
     try {
-      setFiles(
-        await api<Files>(
-          "/files?projectId=" +
-            encodeURIComponent(id) +
-            "&path=" +
-            encodeURIComponent(path) +
-            "&offset=" +
-            offset,
-        ),
+      const result = await api<Files>(
+        "/files?projectId=" +
+          encodeURIComponent(id) +
+          "&path=" +
+          encodeURIComponent(path) +
+          "&offset=" +
+          offset,
       );
+      if (sequence !== loadSequence.current) return;
+      setFiles(result);
       setError("");
     } catch (e) {
-      setError((e as Error).message);
+      if (sequence === loadSequence.current) setError((e as Error).message);
     }
   }, [id, path, offset]);
   useEffect(() => {
     setFiles(undefined);
     void load();
+    return () => {
+      ++loadSequence.current;
+    };
   }, [load]);
   async function create(e: FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    const issue = directoryNameError(folder ?? "");
+    if (issue) {
+      setFolderError(issue);
+      return;
+    }
     setBusy(true);
+    setFolderError("");
     try {
       await api("/directories", "POST", {
         projectId: id,
@@ -1417,7 +1732,7 @@ function FilesView({
       notify("子目录已创建");
       await load();
     } catch (e) {
-      notify((e as Error).message);
+      setFolderError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -1451,14 +1766,21 @@ function FilesView({
           <RefreshCw size={16} />
           刷新
         </button>
-        <button onClick={() => setFolder("")} disabled={!id}>
+        <button
+          onClick={() => {
+            setFolder("");
+            setFolderError("");
+          }}
+          disabled={!id}
+        >
           <Plus size={16} />
           创建子目录
         </button>
       </div>
       {p && (
         <div className="breadcrumbs">
-          <button title={p.rootPath}
+          <button
+            title={p.rootPath}
             onClick={() => {
               setPath("");
               setOffset(0);
@@ -1490,7 +1812,14 @@ function FilesView({
             ))}
         </div>
       )}
-      {p&&p.status!=="active"&&<div className="info-note file-preview-note"><ShieldCheck size={16}/><p>项目尚未生效，资源地址仅供配置预览。应用并通过外网验证后才能读取。</p></div>}
+      {p && p.status !== "active" && (
+        <div className="info-note file-preview-note">
+          <ShieldCheck size={16} />
+          <p>
+            项目尚未生效，资源地址仅供配置预览。应用并通过外网验证后才能读取。
+          </p>
+        </div>
+      )}
       {error && <div className="warning">{error}</div>}
       <div className="projects-table">
         {!id ? (
@@ -1544,13 +1873,16 @@ function FilesView({
                   <td>{new Date(f.modified).toLocaleDateString("zh-CN")}</td>
                   <td>
                     {f.url ? (
-                      <div className="file-address"><code title={f.url}>{f.url}</code><button
-                        className="text-button"
-                        onClick={() => copy(f.url!)}
-                      >
-                        <Copy size={14} />
-                        复制地址
-                      </button></div>
+                      <div className="file-address">
+                        <code title={f.url}>{f.url}</code>
+                        <button
+                          className="text-button"
+                          onClick={() => copy(f.url!)}
+                        >
+                          <Copy size={14} />
+                          复制地址
+                        </button>
+                      </div>
                     ) : (
                       <span className="muted">
                         {f.directory ? "目录不公开" : "未在资源范围内"}
@@ -1586,29 +1918,51 @@ function FilesView({
         <p>目录列表只在本机显示。删除项目映射不会删除文件。</p>
       </div>
       {folder !== null && (
-        <Modal title="创建子目录" onClose={() => setFolder(null)}>
+        <Modal
+          title="创建子目录"
+          busy={busy}
+          onClose={() => {
+            if (!busy) setFolder(null);
+          }}
+        >
           <form onSubmit={create}>
             <div className="form-body">
               <label>
                 目录名称
+                <Required />
                 <input
                   required
                   autoFocus
+                  disabled={busy}
                   value={folder}
-                  
-                  onChange={(e) => setFolder(e.target.value)}
+                  aria-invalid={Boolean(folderError)}
+                  aria-describedby="folder-hint folder-error"
+                  onChange={(e) => {
+                    setFolder(e.target.value);
+                    setFolderError("");
+                  }}
                 />
               </label>
-              <small>
-                将在 {p?.rootPath}/{path} 下创建。
+              <small id="folder-hint">
+                将在 {p?.rootPath}/{path}{" "}
+                下创建。仅填写名称，不要包含路径分隔符。
               </small>
+              {folderError && (
+                <p className="field-error" id="folder-error" role="alert">
+                  {folderError}
+                </p>
+              )}
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={() => setFolder(null)}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setFolder(null)}
+              >
                 取消
               </button>
               <button className="primary" disabled={busy}>
-                创建目录
+                {busy ? "正在创建…" : "创建目录"}
               </button>
             </div>
           </form>
@@ -1673,15 +2027,28 @@ function Connection({
           <form onSubmit={submit}>
             <label className="upload-zone">
               <ArrowDownToLine size={25} />
-              <strong>{bundle?.name || "选择加密连接包"}</strong>
+              <strong>
+                {bundle?.name || "选择加密连接包"}
+                <Required />
+              </strong>
               <span>只接受 .yandu-profile 文件 · 最大 256 KB</span>
               <input
                 type="file"
                 accept=".yandu-profile"
+                required
+                disabled={busy}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f && f.size > 262144) {
                     notify("连接包超过 256 KB");
+                    setBundle(null);
+                    e.target.value = "";
+                    return;
+                  }
+                  if (f && !f.name.toLowerCase().endsWith(".yandu-profile")) {
+                    notify("请选择 .yandu-profile 格式的连接包");
+                    setBundle(null);
+                    e.target.value = "";
                     return;
                   }
                   setBundle(f || null);
@@ -1690,12 +2057,14 @@ function Connection({
             </label>
             <label>
               连接包口令
+              <Required />
               <input
                 type="password"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
                 autoComplete="off"
                 required
+                disabled={busy}
                 placeholder="输入单独交付的口令"
               />
             </label>
@@ -1724,11 +2093,22 @@ function Connection({
               <dl className="connection-details">
                 <dt>设备身份</dt>
                 <dd>{status.deviceId}</dd>
-                {status.storageTunnel && <><dt>私有存储网关</dt><dd>{status.storageTunnel.gatewayUrl}</dd><dt>隧道内部端口</dt><dd>{status.storageTunnel.remotePort}</dd></>}
-                {status.sites.length>0 && <><dt>SSH 主机指纹</dt>
-                <dd>
-                  <code>{status.sshFingerprint}</code>
-                </dd></>}
+                {status.storageTunnel && (
+                  <>
+                    <dt>私有存储网关</dt>
+                    <dd>{status.storageTunnel.gatewayUrl}</dd>
+                    <dt>隧道内部端口</dt>
+                    <dd>{status.storageTunnel.remotePort}</dd>
+                  </>
+                )}
+                {status.sites.length > 0 && (
+                  <>
+                    <dt>SSH 主机指纹</dt>
+                    <dd>
+                      <code>{status.sshFingerprint}</code>
+                    </dd>
+                  </>
+                )}
                 <dt>授权站点</dt>
                 <dd>
                   {status.sites.map((s) => (
@@ -1745,7 +2125,11 @@ function Connection({
                   setBusy(true);
                   try {
                     await api("/connection/test", "POST", {});
-                    notify(status.sites.length ? "SSH 指纹与设备授权验证通过" : "存储隧道已注册；业务可通过网关检查项目 API");
+                    notify(
+                      status.sites.length
+                        ? "SSH 指纹与设备授权验证通过"
+                        : "存储隧道已注册；业务可通过网关检查项目 API",
+                    );
                   } catch (e) {
                     notify((e as Error).message);
                   } finally {
@@ -1754,7 +2138,7 @@ function Connection({
                 }}
               >
                 <RefreshCw size={16} />
-                {status.sites.length ? '测试配置通道' : '检查存储隧道'}
+                {status.sites.length ? "测试配置通道" : "检查存储隧道"}
               </button>
             </>
           ) : (
@@ -1833,6 +2217,7 @@ function Connection({
             <div className="form-body">
               <label>
                 资源密码
+                <Required />
                 <input
                   required
                   autoFocus

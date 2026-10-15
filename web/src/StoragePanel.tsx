@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState, useRef, type FormEvent } from 'react';
 import { Upload } from 'tus-js-client';
 import { MediaPolicySettings, MediaJobDetails, type MediaPolicy } from './MediaControls';
+import StorageProjectForm from './StorageProjectForm';
+import Modal from './Modal';
+import { Required, directoryNameError } from './FormField';
 type Project = { mediaPolicy?: MediaPolicy; quotaBytes?: number; id: string; mode?: string; displayName: string; rootPath: string; revision: number; status: string; publication: string; lastError?: string };
 type Entry = { id: string; parentId: string; name: string; kind: string; versionId: string; generation: number; size: number };
 type Row = Record<string, string | number>;
 const presets = ['thumbnail-256-v1', 'webp-1280-v1', 'video-cover-v1', 'mp4-720-v1', 'hls-720-v1'];
 const bytes = (n: number) => n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KiB` : `${(n / 1024 / 1024).toFixed(1)} MiB`;
 const columnLabels: Record<string,string> = {id:'ID',created:'创建时间',mime:'类型',sha256:'SHA256',size:'大小',object:'对象',version:'版本',versionId:'版本',preset:'预设',state:'状态',attempts:'尝试次数',error:'错误',scopes:'权限',revoked:'已撤销',name:'名称',kind:'类型'};
-export default function StoragePanel({ projects, initialProjectId, csrf, refresh }: { projects: Project[]; initialProjectId: string; csrf: string; refresh: () => Promise<void> }) {
+export default function StoragePanel({ projects, initialProjectId, creationRequest, csrf, refresh }: { projects: Project[]; initialProjectId: string; creationRequest: number; csrf: string; refresh: () => Promise<void> }) {
   const storage = projects.filter(p => p.mode === 'application_storage');
+  const [creationOpen, setCreationOpen] = useState(!storage.length || creationRequest > 0);
+  useEffect(() => { if (creationRequest) setCreationOpen(true); }, [creationRequest]);
   const [selected, select] = useState(initialProjectId);
   const [parent, setParent] = useState('');
   const [trail, setTrail] = useState<{ id: string; name: string }[]>([]);
@@ -20,6 +25,7 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
   const [cursor, setCursor] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [token, setToken] = useState('');
   const [processing, setProcessing] = useState<string[]>([]);
@@ -44,6 +50,7 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
   const load = useCallback(async (next = '') => {
     if (!project) return;
     const sequence = ++loadSequence.current;
+    setLoading(true);
     try {
       const path = tab === 'files' ? `/entries?parentId=${parent}&cursor=${next}` : ['versions','derivatives'].includes(tab) ? `/objects/${versionObject}/${tab}` : `/${tab}`;
       const [result, cap] = await Promise.all([request<{ items: Entry[] & Row[]; nextCursor?: string }>(base + path), request<Record<string, number>>(base + '/capacity')]);
@@ -52,8 +59,9 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
       else setRows(result.items);
       setCursor(result.nextCursor ?? ''); setCapacity(cap); setError('');
     } catch (e) { if(sequence === loadSequence.current) setError((e as Error).message); }
+    finally { if(sequence === loadSequence.current) setLoading(false); }
   }, [project?.id, base, parent, tab, versionObject, request]);
-  useEffect(() => { void load(); const timer = ['jobs','operations'].includes(tab) ? setInterval(() => void load(), 5000) : undefined; return () => { clearInterval(timer); ++loadSequence.current; }; }, [load, tab]);
+  useEffect(() => { setEntries([]); setRows([]); void load(); const timer = ['jobs','operations'].includes(tab) ? setInterval(() => void load(), 5000) : undefined; return () => { clearInterval(timer); ++loadSequence.current; }; }, [load, tab]);
   useEffect(() => { if(initialProjectId) { select(initialProjectId); setParent(''); setTrail([]); setTab('files'); } }, [initialProjectId]);
   useEffect(() => {
     if(dialog !== 'entry') return;
@@ -62,9 +70,13 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
     return () => { current = false; };
   },[dialog,destination,base,editing?.id,request]);
   useEffect(() => () => { for (const upload of uploads.current) void upload.abort(); }, []);
-  async function perform(work: () => Promise<unknown>) { setBusy(true); try { await work(); await load(); await refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
+  async function perform(work: () => Promise<unknown>) { if (busy) return; setBusy(true); setError(''); try { await work(); await load(); await refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   async function submitDialog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (dialog !== 'delete') {
+      const issue = directoryNameError(dialogName);
+      if (issue) { setError(issue); return; }
+    }
     await perform(async () => {
       if(dialog === 'folder') await request(base+'/folders','POST',{name:dialogName,parentId:parent});
       else if(dialog === 'entry' && editing) await request(base+`/entries/${editing.id}`,'PATCH',{name:dialogName,parentId:destination,expectedGeneration:editing.generation});
@@ -75,14 +87,6 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
   async function moreDestinations() {
     try { const result=await request<{items:Entry[];nextCursor?:string}>(base+`/entries?parentId=${destination}&cursor=${destinationCursor}`); setDestinationFolders(old=>[...old,...result.items.filter(v=>v.kind==='folder' && v.id!==editing?.id)]); setDestinationCursor(result.nextCursor ?? ''); }
     catch(e) { setError((e as Error).message); }
-  }
-  async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = new FormData(event.currentTarget);
-    await perform(async () => {
-      const rootPath = String(form.get('root')); await request('/api/v1/roots', 'POST', { path: rootPath });
-      const p = await request<Project>('/api/v1/projects', 'POST', { project: { id: form.get('id'), displayName: form.get('name'), mode: 'application_storage', rootPath, quotaBytes: Number(form.get('quota')) * 1024 ** 3, siteId: '', projectBase: '', resourcePrefixes: [], publication: 'disabled', accessPolicy: '', contentPolicy: '', cachePolicy: '' }, expectedRevision: 0 });
-      await request(`/api/v1/projects/${p.id}/apply`, 'POST', { expectedRevision: p.revision, confirmPublication: true }); select(p.id);
-    });
   }
   const processingSpec = { presets: processing, ...(processing.includes('mp4-720-v1') && project?.mediaPolicy ? { outputConstraints: { 'mp4-720-v1': { onOverflow: overflow } } } : {}) };
   async function processExisting(entry: Entry) {
@@ -115,13 +119,7 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
   }
   return <section className="storage-panel">
     <h2>通用应用存储</h2><p>文件保留在本机。业务通过私有网关访问项目，默认只保存原件。</p>
-    <details open={!project}><summary>创建存储项目</summary><form onSubmit={create} className="storage-form">
-      <label>项目 ID<input name="id" required pattern="[a-z][a-z0-9-]{0,47}" placeholder="my-app" /></label>
-      <label>项目名称<input name="name" required placeholder="应用文件" /></label>
-      <label>已创建的空目录<input name="root" required placeholder="绝对路径，开发模式使用独立测试目录" /></label>
-      <label>配额（GiB）<input name="quota" type="number" min="1" defaultValue="10" required /></label>
-      <button disabled={busy}>授权目录并启用项目</button>
-    </form></details>
+    <details open={creationOpen} onToggle={event => setCreationOpen(event.currentTarget.open)}><summary>创建存储项目</summary><StorageProjectForm projects={projects} csrf={csrf} refresh={refresh} onCreated={id => { select(id); setParent(''); setTrail([]); setTab('files'); setToken(''); }} /></details>
     {project && <>
       <div className="storage-toolbar"><select aria-label="存储项目" value={project.id} onChange={e => { select(e.target.value); setParent(''); setTrail([]); setTab('files'); setEntries([]); setRows([]); setToken(''); }}>
         {storage.map(p => <option key={p.id} value={p.id}>{p.displayName} · {p.status}</option>)}</select>
@@ -141,7 +139,7 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
         {processing.includes('mp4-720-v1') && <p>项目 MP4 上限：{project.mediaPolicy ? `${project.mediaPolicy.mp4MaxFileBytes.toLocaleString()} 字节` : '未设置，保存完整压缩结果'}</p>}
         {processing.includes('mp4-720-v1') && project.mediaPolicy && <label>完整压缩后超限时<select value={overflow} onChange={event => setOverflow(event.target.value as 'reject'|'keep-start')}><option value="reject">任务失败，不裁剪</option><option value="keep-start">我允许保留开头、裁掉尾部</option></select></label>}
       </>}
-      {(tab === 'files' || tab === 'trash') && <table><thead><tr><th>名称</th><th>大小</th><th>操作</th></tr></thead><tbody>{entries.map(v => <tr key={v.id}><td><button onClick={() => { if (v.kind === 'folder' && tab === 'files') { setParent(v.id); setTrail([...trail, { id: v.id, name: v.name }]); } }}>{v.kind === 'folder' ? '📁 ' : '📄 '}{v.name}</button></td><td>{v.kind === 'file' ? bytes(v.size) : '—'}</td><td>
+      {(tab === 'files' || tab === 'trash') && <table aria-busy={loading}><thead><tr><th>名称</th><th>大小</th><th>操作</th></tr></thead><tbody>{!entries.length && <tr><td colSpan={3}>{loading ? '正在读取…' : error ? '读取失败，请刷新重试。' : tab === 'trash' ? '回收站为空' : '此目录暂无文件，可上传文件或新建目录。'}</td></tr>}{entries.map(v => <tr key={v.id}><td><button onClick={() => { if (v.kind === 'folder' && tab === 'files') { setParent(v.id); setTrail([...trail, { id: v.id, name: v.name }]); } }}>{v.kind === 'folder' ? '📁 ' : '📄 '}{v.name}</button></td><td>{v.kind === 'file' ? bytes(v.size) : '—'}</td><td>
         {tab === 'trash' ? <button disabled={busy} onClick={() => void perform(() => request(base + `/trash/${v.id}/restore`, 'POST'))}>恢复</button> : <>
           {v.kind === 'file' && <><a href={base + `/objects/${v.id}/content`} download={v.name}>下载</a><label className="storage-upload">替换版本<input type="file" disabled={busy} onChange={e => { void uploadFiles(e.target.files, v); e.target.value = ''; }} /></label>
             <button onClick={() => { setVersionObject(v.id); setRows([]); setTab('versions'); }}>版本</button>
@@ -159,13 +157,12 @@ export default function StoragePanel({ projects, initialProjectId, csrf, refresh
     </>}
     {jobID && <MediaJobDetails key={`${base}:${jobID}`} base={base} id={jobID} request={request} close={() => setJobID('')} />}
     {error && <p role="alert" className="storage-error">{error}</p>}
-    {dialog && <div className="storage-dialog-backdrop"><form role="dialog" aria-modal="true" aria-label={dialog==='folder'?'新建目录':dialog==='entry'?'重命名或移动':'移入回收站'} className="storage-dialog" onSubmit={submitDialog}>
-      <h3>{dialog==='folder'?'新建目录':dialog==='entry'?'重命名或移动':'移入回收站'}</h3>
-      {dialog==='delete' ? <p>将“{editing?.name}”移入回收站{editing?.kind==='folder'?'，包括全部子项':''}。之后可从回收站恢复。</p> : <label>名称<input autoFocus required value={dialogName} onChange={e=>setDialogName(e.target.value)} /></label>}
+    {dialog && <Modal busy={busy} title={dialog==='folder'?'新建目录':dialog==='entry'?'重命名或移动':'移入回收站'} onClose={() => { if (!busy) setDialog(null); }}><form className="storage-dialog" onSubmit={submitDialog}>
+      {dialog==='delete' ? <p>将“{editing?.name}”移入回收站{editing?.kind==='folder'?'，包括全部子项':''}。之后可从回收站恢复。</p> : <label>名称<Required /><input autoFocus required disabled={busy} value={dialogName} onChange={e=>{setDialogName(e.target.value);setError('');}} /><small>仅填写名称，不要包含 / 或其他路径分隔符。</small></label>}
       {dialog==='entry' && <div><p>目标目录：根目录{destinationTrail.map(v=>' / '+v.name).join('')}</p><div className="storage-toolbar"><button type="button" onClick={()=>{setDestination('');setDestinationTrail([]);}}>根目录</button>{destinationTrail.map((v,i)=><button type="button" key={v.id} onClick={()=>{setDestination(v.id);setDestinationTrail(destinationTrail.slice(0,i+1));}}>{v.name}</button>)}</div><div className="storage-toolbar">{destinationFolders.map(v=><button type="button" key={v.id} onClick={()=>{setDestination(v.id);setDestinationTrail([...destinationTrail,{id:v.id,name:v.name}]);}}>📁 {v.name}</button>)}{destinationCursor && <button type="button" onClick={()=>void moreDestinations()}>更多目录</button>}</div></div>}
       {error && <p role="alert" className="storage-error">{error}</p>}
       <div className="storage-toolbar"><button type="button" disabled={busy} onClick={()=>setDialog(null)}>取消</button><button className="primary" disabled={busy}>{dialog==='delete'?'移入回收站':'保存'}</button></div>
-    </form></div>}
+    </form></Modal>}
   </section>;
 }
 
