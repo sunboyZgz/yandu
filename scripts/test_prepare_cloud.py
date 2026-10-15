@@ -105,6 +105,16 @@ class CloudSourcePreparationTests(unittest.TestCase):
         run.assert_not_called()
         self.assertFalse(prepare.call_args.args[1].exists())
 
+    def test_installer_failure_keeps_recovery_explanation_and_cleans_staging(self):
+        errors = io.StringIO()
+        with patch.object(cloud, "prepare") as prepare, \
+             patch.object(cloud.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "bash installer")), \
+             contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cloud.main(["--server", "203.0.113.10"]), 1)
+        self.assertIn("单独执行 pair", errors.getvalue())
+        self.assertNotIn("Command '[", errors.getvalue())
+        self.assertFalse(prepare.call_args.args[1].exists())
+
     def test_missing_go_explains_prerequisite(self):
         with patch.object(cloud, "find_go", return_value=None):
             with self.assertRaisesRegex(RuntimeError, r"Go 1\.26\.2\+"):

@@ -14,7 +14,7 @@ SCRIPTS = Path(__file__).resolve().parent
 class CloudInstallPreflightTests(unittest.TestCase):
     def run_installer(self, version="26.04", distribution="ubuntu", system="Linux",
                       architecture="x86_64", missing=None, source=False,
-                      dry_run=True, python_available=True, existing=False, environment_ok=True):
+                      dry_run=True, python_available=True, existing=False, environment_ok=True, pending_pair=False):
         with tempfile.TemporaryDirectory(prefix="yandu cloud preflight ") as temporary:
             stage = Path(temporary)
             commands = stage / "commands"
@@ -38,7 +38,11 @@ class CloudInstallPreflightTests(unittest.TestCase):
             managed = stage / "etc/yandu"
             if existing:
                 managed.mkdir(parents=True)
+                if pending_pair:
+                    (managed / "gateway.json").write_text("{}")
             installer = installer.replace("[[ ! -e /etc/yandu ]]", f"[[ ! -e {shlex.quote(str(managed))} ]]")
+            installer = installer.replace("[[ -f /etc/yandu/gateway.json && ! -e /etc/yandu/storage-owner.json ]]",
+                                          f"[[ -f {shlex.quote(str(managed / 'gateway.json'))} && ! -e {shlex.quote(str(managed / 'storage-owner.json'))} ]]")
             installer = installer.replace("[[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]]", "[[ 0 == 1 ]]")
             (scripts / "install-cloud-storage.sh").write_text(installer)
             shutil.copyfile(SCRIPTS / "install-cloud.sh", scripts / "install-cloud.sh")
@@ -140,6 +144,16 @@ class CloudInstallPreflightTests(unittest.TestCase):
         self.assertIn("已有安装", result.stderr)
         self.assertNotIn("source preparation:", result.stdout)
         self.assertNotIn("environment preparation", result.stdout)
+
+    def test_pending_pairing_shows_standalone_recovery_without_reinstalling(self):
+        result = self.run_installer(source=True, dry_run=False, existing=True, pending_pair=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("尚无配对归属记录", result.stderr)
+        self.assertIn("pair --scope storage-only --dir /etc/yandu --device owner --server 203.0.113.10", result.stderr)
+        self.assertIn("--out /etc/yandu/owner.yandu-profile", result.stderr)
+        self.assertNotIn("source preparation:", result.stdout)
+        self.assertNotIn("environment preparation", result.stdout)
+        self.assertNotIn("unexpectedly invoked", result.stderr)
 
 
 if __name__ == "__main__":

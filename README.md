@@ -24,6 +24,8 @@ https://example.com/blog/xxx/中文%20a.png     → D:/oss/blog/xxx/中文 a.png
 python3 scripts/storage-dev.py --no-media  # 文件存储；完整媒体启动时去掉 --no-media
 ```
 
+Windows 新克隆后先运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，自动准备文件功能的运行时、SFTPGo 等组件并构建；需要完整媒体时加 `-Media`。完成后按输出的 `Next:` 命令启动，详见[环境准备](docs/ENVIRONMENT.md)。
+
 开发状态使用独立 `.yandu-storage-dev`，管理页 `127.0.0.1:18765`，存储 API `18770`，内部 SFTPGo `18771`。生成式服务端 SDK 在 `sdk/typescript`，业务会话代理示例在 `examples/storage-business`。完整客户端原生包使用 `release/build-native-storage.py`；传统 `release/build.py` 包不包含存储原生组件。
 
 一键入口先验证 PATH 中已有工具，再检查 `tools.json` 路径和私有候选，只补齐缺失依赖并记录绝对路径、版本及 SHA256。不会修改系统 PATH 或安装全局 npm 包；已有正确组件和匹配锁文件的 npm 依赖会复用。完整包保留离线候选，源码缺少原生组件时才需要相应构建工具。

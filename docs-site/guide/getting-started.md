@@ -21,7 +21,7 @@ sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device 
 
 源码安装会自动补齐 Go 1.26.2+、Python 3.10+ 和必要系统软件包，再准备云端程序与 frps；需保持网络可用，无需手动安装 Node.js/npm。发布包已包含二进制，可直接安装。
 
-替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`；随后终端显示 `连接包口令（至少 12 字符）：`，输入口令并按 Enter，输入时不回显字符。生成的连接包位于 `/etc/yandu/owner.yandu-profile`，本机稍后导入时使用同一口令，文件和口令单独交付。
+替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`；随后提示设置至少 12 个字符的连接包口令，输入时不回显字符。生成的连接包位于 `/etc/yandu/owner.yandu-profile`，本机稍后导入时使用同一口令，文件和口令单独交付。若服务已安装但口令设置失败，按[配对恢复](./cloud-startup.md#连接包口令失败后的恢复)单独生成连接包。
 
 已安装时用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认访问地址与启动检查见[云端服务器启动](./cloud-startup.md)。
 
@@ -33,7 +33,7 @@ sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device 
 | Windows x64 源码 | [Windows 开发模式](./development-windows.md) | `.yandu-storage-dev`，当前用户 |
 | 完整存储组件包 | [本机安装](./storage-deployment.md)、[下载](/downloads) | 系统受管目录，独立服务身份 |
 
-本机默认回环管理页 18765、存储 API 18770、SFTPGo 18771。一键入口端口固定，配置与占用检查见[端口说明](./ports.md#本机开发与安装)。启动完成后，用启动器或 `ui --require-running` 打开管理页。
+本机默认回环管理页 18765、存储 API 18770、SFTPGo 18771。一键入口端口固定，配置与占用检查见[端口说明](./ports.md#本机开发与安装)。启动器会打开管理页；源码模式需要重新打开时，使用 [macOS](./development.md#状态、诊断与重新打开)或 [Windows](./development-windows.md#_4-状态和管理会话) 指南中的完整命令。`--require-running` 传给 Yandu 程序，`make ui` 仅用于前端构建。
 
 ## 3. 导入连接包并配对
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/ed25519"
@@ -12,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
 	"io"
 	"net"
 	"net/http"
@@ -199,28 +197,11 @@ func pair(args []string) error {
 	if e != nil {
 		return e
 	}
-	fmt.Fprint(os.Stderr, "连接包口令（至少 12 字符，不回显）：")
-	var pass []byte
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		pass, e = term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Fprintln(os.Stderr)
-	} else {
-		v, er := bufio.NewReader(os.Stdin).ReadString('\n')
-		e = er
-		if e == io.EOF {
-			e = nil
-		}
-		pass = []byte(strings.TrimSpace(v))
-	}
-	if e != nil {
-		return e
-	}
 	p := model.Profile{SchemaVersion: 1, DeviceID: *device, ServerAddr: *server, ServerPort: 7000, TLSName: *tlsName, TunnelCA: string(ca), TunnelToken: strings.TrimSpace(string(token)), SSHAddr: *sshAddr, SSHUser: *user, SSHFingerprint: ssh.FingerprintSHA256(hk), SSHPrivateKey: string(keyPEM), Sites: sites}
 	if e = secrets.Validate(p); e != nil {
 		return e
 	}
-	bundle, e := secrets.Encrypt(p, string(pass))
-	clear(pass)
+	bundle, e := encryptPairProfile(p)
 	clear(keyPEM)
 	if e != nil {
 		return e
@@ -309,23 +290,7 @@ func storagePair(dir, device, server, tlsName, out string, refreshMonitor bool) 
 	if e = secrets.Validate(p); e != nil {
 		return e
 	}
-	fmt.Fprint(os.Stderr, "连接包口令（至少 12 字符）：")
-	var pass []byte
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		pass, e = term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Fprintln(os.Stderr)
-	} else {
-		line, er := bufio.NewReader(os.Stdin).ReadString('\n')
-		if er != nil && er != io.EOF {
-			return er
-		}
-		pass = []byte(strings.TrimSpace(line))
-	}
-	if e != nil {
-		return e
-	}
-	bundle, e := secrets.Encrypt(p, string(pass))
-	clear(pass)
+	bundle, e := encryptPairProfile(p)
 	if e != nil {
 		return e
 	}

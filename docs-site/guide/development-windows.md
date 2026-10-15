@@ -13,9 +13,15 @@ description: Windows 11 x64 的源码启动、端口、NTFS 测试目录和重�
 
 ## 1. 准备工具
 
-使用 Go 1.26.2+、Python 3.12+。只有 `py` 启动器时用 `py -3` 替代 `python`。Node/npm 和原生工具按[依赖检测](./dependency-tools.md)准备；运行时只要求最低版本，无需降级已有的更高版本。
+新克隆后，在仓库根目录的 64 位 PowerShell 执行：
 
-补齐 HEIC 需要 Visual Studio C++ Build Tools、CMake、Git，并在 Developer PowerShell 中运行；FFmpeg 的 `.7z` 解包需要 7-Zip。平台验证范围见[记录](/reference/storage-verification)。
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1
+```
+
+默认自动准备文件功能所需的 Go 1.26.2+、Python 3.10+、Node/npm、Caddy、frpc、SFTPGo 及模板，并构建客户端。已有满足最低版本的运行时会复用；缺少系统工具时使用 WinGet 安装。若本次安装了系统工具，完成后重新打开 PowerShell，并按末尾 `Next:` 命令启动。
+
+需要 HEIC/视频时，准备命令加 `-Media`，会检查 Python 3.12+，补齐 Visual Studio C++、CMake、Git、7-Zip 并准备媒体组件。准备过程、只检查与自定义目录见[环境准备](./environment.md#windows-本机-一键准备)，工具复用规则见[依赖检测](./dependency-tools.md)。平台验证范围见[记录](/reference/storage-verification)。
 
 ## 2. 启动
 
@@ -25,7 +31,7 @@ description: Windows 11 x64 的源码启动、端口、NTFS 测试目录和重�
 python .\scripts\storage-dev.py --no-media
 ```
 
-该方式不需要媒体构建工具，`mediaReady` 为 `false`。需要 HEIC/视频时，Ctrl+C 停止后去掉 `--no-media` 重新运行。终端显示 `Source Agent ready` 后进入管理页，保持终端运行。
+该方式不需要媒体构建工具，`mediaReady` 为 `false`。需要 HEIC/视频时，先 Ctrl+C 停止旧进程，再执行 `-Media` 环境准备，完成后去掉 `--no-media` 启动。终端显示 `Source Agent ready` 后进入管理页，保持终端运行。只有 `py` 启动器时，可用 `py -3` 替代下列 `python`，或直接使用准备脚本输出的实际解释器命令。
 
 ## 3. 创建 NTFS 测试目录
 
@@ -37,13 +43,20 @@ New-Item -ItemType Directory -Path "$PWD\.local\storage-projects\demo" -Force | 
 
 ## 4. 状态和管理会话
 
-在第二个 PowerShell 中进入同一仓库：
+保持启动终端运行，在第二个 PowerShell 中进入同一仓库，重新打开管理页：
+
+```powershell
+& .\.local\bin\yandu.exe --state-dir "$PWD\.yandu-storage-dev" ui --require-running
+```
+
+`--require-running` 是 `yandu.exe ui` 的参数。`make ui` 仅构建前端，`make ui --require-running` 会被 make 拒绝；本页开发流程直接使用 Python 和 PowerShell 命令。若提示 Agent 未运行，先按上面的启动步骤运行 `storage-dev.py`。
+
+需要查看状态或诊断时，再按需执行：
 
 ```powershell
 $YanduStorageState = Join-Path $PWD '.yandu-storage-dev'
 & .\.local\bin\yandu.exe --state-dir $YanduStorageState status
 & .\.local\bin\yandu.exe --state-dir $YanduStorageState doctor
-& .\.local\bin\yandu.exe --state-dir $YanduStorageState ui --require-running
 ```
 
 自定义目录可在启动命令追加 `--state-dir .local\test-state --bin-dir .local\test-bin --no-open`，后续 CLI 使用相同状态目录。

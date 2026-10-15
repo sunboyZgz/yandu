@@ -117,8 +117,10 @@ if target=='darwin-arm64':
    shutil.copy2(info['Zip'],sources/(name+'-'+source['moduleVersion']+'.zip'))
 else:
  if a.only=='all':
-  sftp=extract(fetch(LOCK['sftpgo']['windowsPortable']),CACHE/'sftpgo-windows');shutil.copy2(next(sftp.rglob('sftpgo.exe')),stage/'bin/sftpgo.exe')
-  template=next(sftp.rglob('templates'));shutil.copytree(template,stage/'share/sftpgo/templates');copy_licenses(sftp,licenses,'sftpgo')
+  # The pinned portable archive keeps x64 at its root and other architectures
+  # in arm64/ and x86/. Never choose the first recursively discovered EXE.
+  sftp=extract(fetch(LOCK['sftpgo']['windowsPortable']),CACHE/'sftpgo-windows');shutil.copy2(sftp/'sftpgo.exe',stage/'bin/sftpgo.exe')
+  shutil.copytree(sftp/'templates',stage/'share/sftpgo/templates');copy_licenses(sftp,licenses,'sftpgo')
  if a.only in ('all','ffmpeg'):
   ffmpeg=extract(fetch(LOCK['ffmpeg'][target]),CACHE/'ffmpeg-windows')
   for tool in ('ffmpeg','ffprobe'):shutil.copy2(next(ffmpeg.rglob(tool+'.exe')),stage/'bin'/(tool+'.exe'))

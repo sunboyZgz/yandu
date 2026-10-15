@@ -160,18 +160,22 @@ func hash(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), e
 }
 func nativeExecutable(path string) error {
-	switch runtime.GOOS {
+	return executableFor(path, runtime.GOOS, runtime.GOARCH)
+}
+
+func executableFor(path, system, arch string) error {
+	switch system {
 	case "darwin":
 		if f, e := macho.Open(path); e == nil {
 			defer f.Close()
-			if f.Cpu == macho.CpuArm64 && runtime.GOARCH == "arm64" {
+			if f.Cpu == macho.CpuArm64 && arch == "arm64" {
 				return nil
 			}
 		}
 		if f, e := macho.OpenFat(path); e == nil {
 			defer f.Close()
 			for _, a := range f.Arches {
-				if a.Cpu == macho.CpuArm64 && runtime.GOARCH == "arm64" {
+				if a.Cpu == macho.CpuArm64 && arch == "arm64" {
 					return nil
 				}
 			}
@@ -179,19 +183,19 @@ func nativeExecutable(path string) error {
 	case "windows":
 		if f, e := pe.Open(path); e == nil {
 			defer f.Close()
-			if f.Machine == pe.IMAGE_FILE_MACHINE_AMD64 && runtime.GOARCH == "amd64" {
+			if f.Machine == pe.IMAGE_FILE_MACHINE_AMD64 && arch == "amd64" {
 				return nil
 			}
 		}
 	case "linux":
 		if f, e := elf.Open(path); e == nil {
 			defer f.Close()
-			if f.Machine == elf.EM_X86_64 && runtime.GOARCH == "amd64" {
+			if f.Machine == elf.EM_X86_64 && arch == "amd64" {
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("executable is not native %s/%s", runtime.GOOS, runtime.GOARCH)
+	return fmt.Errorf("executable is not native %s/%s", system, arch)
 }
 func output(ctx context.Context, path string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

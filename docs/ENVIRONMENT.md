@@ -1,12 +1,37 @@
 # 环境准备
 
-先按运行位置选择准备方式。**Ubuntu 云端源码安装已自动包含环境准备，直接执行云端安装命令即可。** 想先把环境备好、稍后再安装服务时，使用下面的独立入口。
+先按运行位置选择准备方式。Ubuntu 云端与 Windows 本机源码均提供独立环境准备入口；Ubuntu 云端安装命令本身也会自动准备环境。
 
 | 你要做什么 | 准备方式 |
 | --- | --- |
 | Ubuntu 云端，从源码安装 | 一键补齐环境，再自动编译和安装；见下方步骤 |
 | Ubuntu 云端，使用 Linux 发布包 | 解压后直接安装；包内已有程序和 frps，无需 Go、Python 开发环境 |
-| macOS / Windows 本机客户端 | 完整存储组件包按本机安装指南操作；源码开发按各平台开发指南准备 |
+| Windows 本机，从源码运行 | 使用下方 `setup-windows-env.ps1`，自动补齐运行时和本机组件 |
+| macOS 本机源码 / 本机完整组件包 | 按对应平台开发或安装指南准备 |
+
+## Windows 本机：一键准备
+
+在新克隆的源码仓库根目录，用 **Windows x64 的 64 位 PowerShell** 执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1
+```
+
+默认准备文件功能：检查 Go **1.26.2+**、Python **3.10+**，缺少时通过 [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/install) 安装；复用满足最低版本的现有运行时。随后自动准备 Node/npm、Caddy、frpc、SFTPGo 及原始模板，安装项目 npm 依赖并构建客户端。组件按锁文件校验并保存到私有目录，重复执行会复用正确工具与缓存。
+
+完成后按脚本末尾的 `Next:` 命令启动，默认等价于 `python .\scripts\storage-dev.py --no-media`。如果本次安装了 Go/Python 等系统工具，先重新打开 PowerShell。准备脚本只准备依赖和构建程序，启动器负责启动 Agent 与 SFTPGo；已有源码实例运行时，先 Ctrl+C 停止再准备，避免 EXE 被占用。
+
+需要 HEIC、视频处理时，加 `-Media`：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1 -Media
+```
+
+该模式要求 Python **3.12+**，自动补齐 Git、CMake、7-Zip 和 Visual Studio C++ x64 构建工具，再准备 FFmpeg/FFprobe、HEIC 解码器和媒体 Worker 依赖。原生工具缺失时会从锁定源码构建；首次 C++ 工具安装及媒体编译可能耗时较长，安装器可能申请管理员权限。已有合适的 Visual Studio 工具会复用。Visual Studio 安装调用方式见[微软说明](https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio?view=vs-2022)。
+
+只检查运行时及已记录组件的文件摘要，用 `-Check`；检查媒体环境时再加 `-Media`。自定义目录用 `-StateDir`、`-BinDir`，启动时使用同一组目录。WinGet 缺失时，先安装或更新 Microsoft App Installer，再重新打开 PowerShell；网络需能访问软件源、官方组件下载和 npm/Go 模块源。
+
+若曾出现 `expected one sftpgo.exe executable in private payload`，更新后的准备器会按 PE 文件架构选择 x64 程序，已有完整下载缓存可直接复用。原始便携包包含多个架构，并不表示需要自行收集缺失文件。
 
 ## Ubuntu 云端：一键准备
 
@@ -53,4 +78,4 @@ sudo bash ./setup-cloud-env.sh --dry-run   # 预览缺少的软件包与 Go 准�
 
 这两个选项均不安装软件或下载文件。环境准备入口仅准备依赖；创建 Yandu 配置、服务与连接包由 `install-cloud.sh` 完成。
 
-其他平台的版本要求和工具复用规则见[依赖检测](DEPENDENCY_TOOLS.md)。
+各平台的版本要求和工具复用规则见[依赖检测](DEPENDENCY_TOOLS.md)。

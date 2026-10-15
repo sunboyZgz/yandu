@@ -8,6 +8,7 @@ check: ui
 	go test ./...
 	go vet ./...
 	python3 scripts/test_dev.py
+	python3 scripts/test_storage_dev.py
 	python3 scripts/test_cloud_install.py
 	python3 scripts/test_prepare_cloud.py
 	python3 scripts/test_cloud_env.py

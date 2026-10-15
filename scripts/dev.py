@@ -135,10 +135,11 @@ def build(root: Path, bindir: Path, target: str, tools_config: Path | None = Non
                 args=[str(helper),'tools','prepare','--config',str(config_path),'--component-root',str(root),'--role',selected_role,'--json']
                 if skip_media:args.append('--no-media')
                 for name,path in (explicit or {}).items():args += ['--tool',name+'='+str(path)]
-                try:return json.loads(execute(args,root,capture_output=True).stdout)
+                print(f'Preparing {selected_role} dependencies...',flush=True)
+                try:return json.loads(execute(args,root,stdout=subprocess.PIPE,env={**os.environ,'YANDU_BUILD_PYTHON':sys.executable}).stdout)
                 except subprocess.CalledProcessError as error:
                     detail=error.stderr.decode(errors='replace') if isinstance(error.stderr,bytes) else str(error.stderr or '')
-                    raise DevError('Dependency preparation failed: '+detail[-4000:]) from error
+                    raise DevError('Dependency preparation failed: '+(detail[-4000:] or 'see the component error above; verified download caches are kept.')) from error
             build_tools=prepare(config.parent/'build-tools.json','build')
             node=Path(build_tools['tools']['node']['path'])
             registered=prepare(config,role,no_media,overrides)

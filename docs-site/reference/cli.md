@@ -38,6 +38,8 @@ $YanduStorageState = Join-Path $PWD '.yandu-storage-dev'
 
 `ui` 打开本机会话；`--require-running` 不自动启动安装服务。`--no-open` 准备会话但不打开浏览器。`status` 查看实际状态，`doctor` 导出诊断，`version` 不要求 Agent 已运行。
 
+上面的 `ui --require-running` 必须跟在 Yandu 可执行程序之后。`make ui` 是安装 npm 依赖并构建前端的 Makefile 目标；`make ui --require-running` 会把参数交给 make 而报错。Windows 源码开发使用上述 PowerShell 命令，首次启动见[Windows 开发模式](/guide/development-windows)。
+
 ## 源码启动与停止
 
 工具路径由 `tools.json` 记录，启动时按 PATH、配置、私有候选和按需补齐解析。可用 `yandu --state-dir /absolute/state tools list` 查看，`tools prepare --role local --component-root /absolute/bundle` 重新验证；源码只启用文件能力时加 `--no-media`。云端用 `sudo yandu tools prepare --role cloud`。详情见[依赖检测与私有工具路径](/guide/dependency-tools)。
@@ -136,8 +138,10 @@ sudo yandu list --json
 查询本地设备全部受管项目、配额和去重后的磁盘/APFS 容器。默认读取受限的 `/etc/yandu/monitor.json`。新 storage-only 配对自动交付专用只读监控凭证；旧部署需更新程序和连接包，见[云端命令行与容量监控](/guide/cloud-monitoring)。
 
 ```bash
-yandu-cloud pair --scope storage-only --dir /etc/yandu --device owner --server 203.0.113.10 --out owner.yandu-profile
+sudo yandu pair --scope storage-only --dir /etc/yandu --device owner --server 203.0.113.10 --out /etc/yandu/owner.yandu-profile
 yandu-cloud storage-gateway --config /etc/yandu/gateway.json
 ```
 
 示例 IP 换成真实服务器地址。配对需先完成自己的 TLS/frps 安装，口令交互读取；网关默认由 `yandu-gateway` systemd 服务管理，不重复监听同一端口。完整步骤见[云端部署](/guide/cloud-startup)。
+
+安装已完成但口令设置失败时，可直接重试上述 `pair` 命令；交互输入过短时会重新提示。已有设备配对成功后的监控凭证更新才使用 `--refresh-monitor`，见[配对恢复](/guide/cloud-startup#连接包口令失败后的恢复)。

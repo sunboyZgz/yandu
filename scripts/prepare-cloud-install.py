@@ -82,10 +82,16 @@ def main(argv: list[str] | None = None) -> int:
             prepare(ROOT, stage)
             print("云端组件已准备完成，开始安装服务并生成连接包…", flush=True)
             # Keep stdin/stdout attached to the terminal for the passphrase prompt.
-            subprocess.run(
-                ["bash", str(stage / "install-cloud.sh"), "--mode", "storage-only",
-                 "--server", args.server, "--device", args.device], check=True,
-            )
+            try:
+                subprocess.run(
+                    ["bash", str(stage / "install-cloud.sh"), "--mode", "storage-only",
+                     "--server", args.server, "--device", args.device], check=True,
+                )
+            except subprocess.CalledProcessError as error:
+                raise RuntimeError(
+                    f"云端安装阶段未完成（退出码 {error.returncode}），请按上方提示处理；"
+                    "若服务已启用而连接包生成失败，可单独执行 pair 继续配对。"
+                ) from error
         return 0
     except KeyboardInterrupt:
         return 130

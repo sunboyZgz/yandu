@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch, Mock
@@ -44,6 +45,26 @@ class LauncherTests(unittest.TestCase):
         args=execute.call_args.args[0]
         self.assertEqual(args,[str(node),str(entry),'--prefix',str(directory),'ci'])
         self.assertNotIn('-g',args)
+
+    def test_native_tool_builders_receive_the_selected_python_interpreter(self):
+        node = self.root / 'Node path/node.exe'
+        entry = node.parent / 'node_modules/npm/bin/npm-cli.js'
+        entry.parent.mkdir(parents=True)
+        entry.write_text('fixture')
+        prepared = []
+        def execute(args, root, **kwargs):
+            if args[0] == 'go' and '-o' in args:
+                Path(args[args.index('-o') + 1]).write_bytes(b'compiled fixture')
+            if 'tools' in args and 'prepare' in args:
+                prepared.append(kwargs['env']['YANDU_BUILD_PYTHON'])
+                return subprocess.CompletedProcess(args, 0, json.dumps({'tools': {'node': {'path': str(node)}}}).encode())
+            return subprocess.CompletedProcess(args, 0)
+        with patch.object(dev, 'host_target', return_value='windows-amd64'), \
+             patch.object(dev, 'check_output_files'), patch.object(dev, 'tool', side_effect=lambda name: name), \
+             patch.object(dev, 'execute', side_effect=execute), patch.object(dev, 'ensure_npm'), \
+             contextlib.redirect_stdout(io.StringIO()):
+            dev.build(self.root, self.root / 'bin', 'windows-amd64', role='local', no_media=True)
+        self.assertEqual(prepared, [sys.executable, sys.executable])
 
     def test_windows_plan_has_exe_and_only_windows_components(self):
         output = io.StringIO()

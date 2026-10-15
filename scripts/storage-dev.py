@@ -51,8 +51,11 @@ def main():
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--state-dir',default='.yandu-storage-dev');parser.add_argument('--sftpgo',help='Explicit SFTPGo path; invalid explicit paths fail without substitution')
  parser.add_argument('--bin-dir',default='.local/bin');parser.add_argument('--no-media',action='store_true');parser.add_argument('--no-open',action='store_true')
- args=parser.parse_args();host_target();ensure_ports_free()
- with socket.socket() as probe: probe.bind(('127.0.0.1',18771))
+ parser.add_argument('--prepare-only',action='store_true',help='Prepare dependencies and build the Agent without starting services')
+ args=parser.parse_args();host_target()
+ if not args.prepare_only:
+  ensure_ports_free()
+  with socket.socket() as probe: probe.bind(('127.0.0.1',18771))
  state=(ROOT/args.state_dir).resolve();bindir=(ROOT/args.bin_dir).resolve()
  if state==bindir or state.is_relative_to(bindir) or bindir.is_relative_to(state):raise RuntimeError('Binary and state directories must be separate')
  prepare_state(ROOT,state)
@@ -61,6 +64,9 @@ def main():
   value=os.getenv('YANDU_'+name.upper().replace('-','_'))
   if value:overrides[name]=value
  build(ROOT,bindir,host_target(),tools_config=state/'tools.json',role='local',no_media=args.no_media,overrides=overrides)
+ if args.prepare_only:
+  print('Storage development environment ready; dependencies: '+str(state/'tools.json'),flush=True)
+  return
  tools=json.loads((state/'tools.json').read_text());binary=pathlib.Path(tools['tools']['sftpgo']['path'])
  child,log=prepare_backend(state,binary,not args.no_media,tools=tools)
  try:

@@ -4,6 +4,8 @@
 
 首次部署先看[环境准备与一键安装](ENVIRONMENT.md)。Ubuntu 云端源码安装自动准备所需环境，也可在仓库根目录单独执行 `sudo bash ./setup-cloud-env.sh`。
 
+Windows 源码在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，默认准备文件功能；加 `-Media` 准备 HEIC/视频及其构建工具，加 `-Check` 只检查。该入口准备依赖并构建，不启动服务。
+
 ## 运行时最低版本
 
 | 运行时 | 最低要求 | 使用场景 |
@@ -85,6 +87,8 @@ Windows 使用 `.exe`。`list` 只展示记录，可加 `--json`；`prepare` 重
 工具及动态库必须能被实际服务身份读取、执行。普通路径不可用时会验证包内候选，固定路径失败则停止。文件 SHA256 变化需重新准备；配置损坏或 schema 不支持时不会覆盖。
 
 完整包提供离线组件。源码缺失组件时，macOS 构建 HEIC/FFmpeg 需要 Xcode Command Line Tools、CMake、pkg-config；Windows HEIC 需要 Visual Studio C++、CMake/Git，FFmpeg 解包需要 7-Zip。构建器的 `--only heif` / `--only ffmpeg` 可单独准备对应组件。
+
+SFTPGo Windows 便携包包含 x64、ARM64 和 x86 三个同名程序，准备器按可执行文件架构选择 x64，保留原始 `templates/email`。旧代码的 `expected one sftpgo.exe executable in private payload` 是多架构选择错误；更新代码后重跑准备入口即可复用完整下载缓存。
 
 ## frps 下载超时
 

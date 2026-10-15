@@ -186,6 +186,10 @@ func downloadAttempt(ctx context.Context, a asset, archive string, client *http.
 	return false, os.Rename(tmp, archive)
 }
 func findExecutable(root, name string) (string, error) {
+	return findExecutableFor(root, name, runtime.GOOS, runtime.GOARCH)
+}
+
+func findExecutableFor(root, name, system, arch string) (string, error) {
 	var found []string
 	e := filepath.WalkDir(root, func(path string, d os.DirEntry, e error) error {
 		if e != nil {
@@ -199,10 +203,21 @@ func findExecutable(root, name string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	if len(found) != 1 {
-		return "", fmt.Errorf("expected one %s executable in private payload", name)
+	if len(found) == 1 {
+		return found[0], nil
 	}
-	return found[0], nil
+	// Portable archives can contain x64, ARM64 and x86 copies with the same
+	// basename. Select by executable headers, never directory iteration order.
+	var native []string
+	for _, path := range found {
+		if executableFor(path, system, arch) == nil {
+			native = append(native, path)
+		}
+	}
+	if len(native) == 1 {
+		return native[0], nil
+	}
+	return "", fmt.Errorf("expected one %s executable for %s/%s in private payload (found %d files, %d matching architecture)", name, system, arch, len(found), len(native))
 }
 func safeArchivePath(root, name string) (string, error) {
 	if strings.Contains(name, "\\") || strings.ContainsAny(name, ":\x00\r\n") || filepath.IsAbs(name) {
@@ -293,12 +308,23 @@ func extractArchive(archive, root string) error {
 func buildTool(ctx context.Context, name, dest, root string) (string, error) {
 	// Reuse the existing locked upstream builders; deployments with complete
 	// bundles never need compilers, Homebrew, pip or a machine-wide npm install.
-	python, e := exec.LookPath("python3")
-	if e != nil {
-		python, e = exec.LookPath("python")
-	}
-	if e != nil {
-		return "", fmt.Errorf("native tool missing; use a complete bundle or source Python/native build prerequisites")
+	python := os.Getenv("YANDU_BUILD_PYTHON")
+	if python != "" {
+		if !filepath.IsAbs(python) {
+			return "", fmt.Errorf("YANDU_BUILD_PYTHON must be an absolute interpreter path")
+		}
+		if info, e := os.Stat(python); e != nil || !info.Mode().IsRegular() {
+			return "", fmt.Errorf("configured native build Python is unavailable: %s", python)
+		}
+	} else {
+		var e error
+		python, e = exec.LookPath("python3")
+		if e != nil {
+			python, e = exec.LookPath("python")
+		}
+		if e != nil {
+			return "", fmt.Errorf("native tool missing; use a complete bundle or source Python/native build prerequisites")
+		}
 	}
 	var args []string
 	var result string
@@ -318,7 +344,7 @@ func buildTool(ctx context.Context, name, dest, root string) (string, error) {
 		if name == "heif-thumbnailer" {
 			group = "heif"
 		}
-		if e = os.MkdirAll(dest, 0755); e != nil {
+		if e := os.MkdirAll(dest, 0755); e != nil {
 			return "", e
 		}
 		output, e := os.MkdirTemp(dest, "native-"+group+"-")
@@ -333,14 +359,14 @@ func buildTool(ctx context.Context, name, dest, root string) (string, error) {
 	} else {
 		return "", fmt.Errorf("missing native %s; supply a complete platform bundle or configured path", name)
 	}
-	if _, e = os.Stat(args[0]); e != nil {
+	if _, e := os.Stat(args[0]); e != nil {
 		return "", fmt.Errorf("native %s missing; no source builder in this installation", name)
 	}
 	cmd := exec.CommandContext(ctx, python, args...)
 	cmd.Dir = root
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	if e = cmd.Run(); e != nil {
+	if e := cmd.Run(); e != nil {
 		return "", fmt.Errorf("native %s build failed; check source compiler prerequisites: %w", name, e)
 	}
 	return result, nil

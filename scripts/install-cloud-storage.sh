@@ -19,10 +19,20 @@ if ((${#YANDU_MISSING_COMMANDS[@]}));then
  exit 1
 fi
 [[ $DRY == 1 ]] && { echo "storage-only：TLS frps :7000 → 回环 :19090 → 私有网关 :19091；无需 Nginx。";exit 0; }
+show_pair_command() {
+ printf '  sudo /usr/local/lib/yandu/yandu-cloud pair --scope storage-only --dir /etc/yandu --device %q --server %q --out %q\n' "$DEVICE" "$SERVER" "/etc/yandu/$DEVICE.yandu-profile" >&2
+}
 if [[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]];then
  [[ -L /usr/local/bin/yandu && $(readlink /usr/local/bin/yandu) == /usr/local/lib/yandu/yandu-cloud ]] || { echo '已有不属于云端 Yandu 的 /usr/local/bin/yandu，停止安装';exit 1; }
 fi
-[[ ! -e /etc/yandu ]] || { echo "已有安装；请使用维护流程扩展或升级，不覆盖现有配置" >&2;exit 1; }
+[[ ! -e /etc/yandu ]] || {
+ echo "已有安装；请使用维护流程扩展或升级，不覆盖现有配置" >&2
+ if [[ -f /etc/yandu/gateway.json && ! -e /etc/yandu/storage-owner.json ]];then
+  echo '检测到存储网关配置，但尚无配对归属记录。若上次在连接包口令处失败，可单独继续配对：' >&2
+  show_pair_command
+ fi
+ exit 1
+}
 for account in yandu-frps yandu-gateway;do ! id "$account" >/dev/null 2>&1 || { echo "同名账号已存在，拒绝接管" >&2;exit 1; };done
 if [[ ! -x $YANDU_SOURCE/yandu-cloud || ! -x $YANDU_SOURCE/bin/frps ]];then
  if [[ -f $YANDU_SOURCE/../go.mod && -d $YANDU_SOURCE/../cmd/yandu-cloud && -f $YANDU_SOURCE/prepare-cloud-install.py ]];then
@@ -83,5 +93,9 @@ done
 systemctl daemon-reload
 systemctl enable --now yandu-frps yandu-gateway
 cd /etc/yandu
-/usr/local/lib/yandu/yandu-cloud pair --scope storage-only --device "$DEVICE" --server "$SERVER" --out "$DEVICE.yandu-profile"
+if ! /usr/local/lib/yandu/yandu-cloud pair --scope storage-only --device "$DEVICE" --server "$SERVER" --out "$DEVICE.yandu-profile";then
+ echo '云端服务已安装并启用，连接包生成未完成。若上方是口令错误，可用以下命令继续配对：' >&2
+ show_pair_command
+ exit 1
+fi
 echo '安装完成：仅向本地设备开放 7000/TCP；19090 和 19091 保持回环监听。'

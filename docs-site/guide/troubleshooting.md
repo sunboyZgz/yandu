@@ -24,9 +24,19 @@ Get-NetTCPConnection -State Listen | Where-Object LocalPort -in 18765,18770,1877
 Get-Service Yandu,YanduSFTPGo -ErrorAction SilentlyContinue
 ```
 
-从源码打开管理页时，使用[开发指南](./development.md)中的实际程序和 `.yandu-storage-dev`。`SESSION_REQUIRED` 或会话过期时用 `ui --require-running` 获取新会话，不手工复制内部令牌。
+从源码打开管理页时，使用 [macOS](./development.md#状态、诊断与重新打开) 或 [Windows](./development-windows.md#_4-状态和管理会话) 指南中的完整命令获取新会话，适用于 `SESSION_REQUIRED` 或会话过期。
 
 SFTPGo 缺失或启动失败时核对 2.7.6 原生程序与原始 `templates/email`。当前完整包用 `component-receipt.json` 校验；传统只读组件包没有完整存储/媒体组件。
+
+### Windows 提示 make 不认识 --require-running
+
+`--require-running` 属于 Yandu 的 `ui` 命令，make 不会转发这个选项。源码服务已启动时，在仓库根目录的第二个 PowerShell 中执行：
+
+```powershell
+& .\.local\bin\yandu.exe --state-dir "$PWD\.yandu-storage-dev" ui --require-running
+```
+
+如果尚未启动，在第一个终端运行 `python .\scripts\storage-dev.py --no-media` 并保持终端运行。`make ui` 仅构建前端；启动、媒体和自定义路径见[Windows 开发模式](./development-windows.md)。
 
 ## 项目与受管目录
 
