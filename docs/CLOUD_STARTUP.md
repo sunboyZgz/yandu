@@ -65,9 +65,31 @@ sudo yandu pair --scope storage-only --dir /etc/yandu \
 
 ## 2. 将连接包导入本机 Yandu
 
-1. 在 macOS/Windows 上启动本机 Yandu。
-2. 通过可信方式交付 `.yandu-profile` 文件，口令单独传递。
-3. 在本机管理页「服务器连接」中导入连接包并输入口令。
+这里的“交付”就是**把云服务器上的连接包下载到运行 Yandu 的 Windows/macOS 电脑**。本机没有固定接收目录，放到「下载」文件夹即可：
+
+| 位置 | 示例路径 |
+| --- | --- |
+| 云服务器生成的文件 | `/etc/yandu/owner.yandu-profile` |
+| Windows 下载到本机后 | `C:\Users\你的用户名\Downloads\owner.yandu-profile` |
+| macOS 下载到本机后 | `~/Downloads/owner.yandu-profile` |
+
+使用你已有的 SSH/SFTP 连接下载该文件。例如在 **Windows 本机 PowerShell** 中执行下面的命令，替换服务器 IP；示例使用可读取该文件的 root SSH 账号：
+
+```powershell
+scp root@203.0.113.10:/etc/yandu/owner.yandu-profile "$env:USERPROFILE\Downloads\owner.yandu-profile"
+```
+
+如果平时使用其他 SSH 账号、端口或密钥，沿用自己的连接配置；也可以使用已有 SSH/SFTP 工具的下载功能。
+
+下载后：
+
+1. 在 Windows/macOS 上启动本机 Yandu，打开管理页「服务器连接」。
+2. 点击「选择加密连接包」，选择刚下载的 `owner.yandu-profile`。
+3. 输入**云端安装或配对时设置的连接包口令**，点击「导入并配对」。
+
+无需把文件复制到源码仓库、程序安装目录或 `.yandu-storage-dev`。导入成功后，Yandu 会把连接材料保存到自己的状态目录；后续连接不依赖这个下载文件，可将它移到自己的私有备份位置。
+
+“口令单独传递”只针对两个人分别管理云端和本机的情况：文件通过 SSH/SFTP 下载，口令通过另一渠道告知。如果两端都是你自己操作，记住安装时设置的口令，在导入时输入即可，不需要再发送口令或创建口令文件。
 
 当前默认部署配对一台本机设备，可在该设备上管理多个项目；项目在本机创建并启用。
 

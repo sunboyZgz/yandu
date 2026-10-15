@@ -7,7 +7,7 @@ description: 启动云端和本机、导入连接包、创建项目并验证业�
 
 操作顺序：**先安装云端并取得连接包 → 再启动本机并导入连接包 → 创建存储项目 → 验证业务读写**。云端安装时，本机无需启动或在线；文件读写时两端都需保持运行。本机无需公网 IP。平台发布状态见[验证记录](/reference/storage-verification)。
 
-首次使用先看[环境准备与一键安装](./environment.md)：Ubuntu 云端源码安装会自动补齐环境；使用发布包可直接安装。
+首次使用先看[环境准备与一键安装](./environment.md)：Ubuntu 云端源码安装先检查复用环境，补齐系统依赖需显式加 `--allow-system-install`；使用发布包无需源码构建工具。
 
 ## 1. 启动云端服务器
 
@@ -19,9 +19,9 @@ description: 启动云端和本机、导入连接包、创建项目并验证业�
 sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device owner
 ```
 
-源码安装会自动补齐 Go 1.26.2+、Python 3.10+ 和必要系统软件包，再准备云端程序与 frps；需保持网络可用，无需手动安装 Node.js/npm。发布包已包含二进制，可直接安装。
+源码安装检查 Go 1.26.2+、Python 3.10+ 和必要系统软件包，再准备云端程序与 frps；缺少系统依赖时，在上述安装命令末尾加 `--allow-system-install` 才允许补齐。需保持网络可用，无需手动安装 Node.js/npm。发布包已包含二进制，可直接安装。
 
-替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`；随后提示设置至少 12 个字符的连接包口令，输入时不回显字符。生成的连接包位于 `/etc/yandu/owner.yandu-profile`，本机稍后导入时使用同一口令，文件和口令单独交付。若服务已安装但口令设置失败，按[配对恢复](./cloud-startup.md#连接包口令失败后的恢复)单独生成连接包。
+替换成真实服务器 IP。`owner` 是为将来接入的本机指定的设备 ID，可直接使用这个示例值。安装器启动 `yandu-frps`、`yandu-gateway`；随后提示设置至少 12 个字符的连接包口令，输入时不回显字符。生成的连接包位于云端 `/etc/yandu/owner.yandu-profile`，下载到本机「下载」文件夹即可，本机稍后导入时输入同一口令。若服务已安装但口令设置失败，按[配对恢复](./cloud-startup.md#连接包口令失败后的恢复)单独生成连接包。
 
 已安装时用 `sudo systemctl start yandu-frps yandu-gateway` 启动。默认访问地址与启动检查见[云端服务器启动](./cloud-startup.md)。
 
@@ -37,7 +37,7 @@ sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device 
 
 ## 3. 导入连接包并配对
 
-在本机「服务器连接」导入云端生成的 schema v2 包，输入口令并检查隧道状态。本机主动连接云端 7000；云端 19090 和 19091 保持回环。
+在本机管理页「服务器连接」点击「选择加密连接包」，选择下载的 `owner.yandu-profile`，输入云端配对时设置的口令并导入。文件无需放入源码、安装或状态目录；下载示例见[云端启动](./cloud-startup.md#_2-将连接包导入本机-yandu)。本机主动连接云端 7000；云端 19090 和 19091 保持回环。
 
 导入会停用已有项目，已有项目需核对后重新启用；新项目在下一步创建。详细步骤见[连接与配对](./connection.md)。
 

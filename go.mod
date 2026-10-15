@@ -4,6 +4,7 @@ go 1.26.2
 
 require (
 	github.com/gofrs/flock v0.13.1
+	github.com/mattn/go-runewidth v0.0.31
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/tus/tusd/v2 v2.10.1
@@ -16,6 +17,7 @@ require (
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

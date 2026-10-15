@@ -10,6 +10,7 @@ Yandu does not fork Caddy, frp, Nginx or their protocols. Official source and re
 - Go x/crypto, x/sys, x/term — BSD-3-Clause; https://go.googlesource.com/
 - modernc.org/sqlite and related modernc modules — see included upstream licenses; https://gitlab.com/cznic/sqlite
 - github.com/gofrs/flock — BSD-3-Clause; https://github.com/gofrs/flock
+- github.com/mattn/go-runewidth and github.com/clipperhouse/uax29/v2 — MIT; https://github.com/mattn/go-runewidth, https://github.com/clipperhouse/uax29
 
 Full transitive Go inventory is recorded in go.mod/go.sum; UI inventory is in web/package-lock.json. The build collects publisher LICENSE/COPYING/NOTICE files into each package's licenses/ directory. No external fonts, tracking scripts or remote images are loaded by the local management UI.
 

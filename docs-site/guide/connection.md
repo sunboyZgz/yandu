@@ -24,9 +24,13 @@ description: 导入 schema v2 存储连接包、核对设备与 TLS 隧道，以
 
 ## 在管理页导入
 
+先把云端的 `/etc/yandu/owner.yandu-profile` 下载到**运行 Yandu 的本机电脑**，例如 Windows 的 `C:\Users\你的用户名\Downloads\owner.yandu-profile` 或 macOS 的 `~/Downloads/owner.yandu-profile`。本机接收目录可自由选择，无需放进源码仓库、安装目录或状态目录。下载方法见[云端启动：将连接包导入本机](./cloud-startup.md#_2-将连接包导入本机-yandu)。
+
 1. 用启动器或 `yandu ui` 打开本机管理页。
-2. 进入「服务器连接」，选择 `.yandu-profile`。
-3. 输入单独交付的加密口令，点击「导入并配对」。
+2. 进入「服务器连接」，点击「选择加密连接包」，选中下载的 `.yandu-profile`。
+3. 输入云端安装或配对时设置的连接包口令，点击「导入并配对」。
+
+两端都由自己操作时，直接输入自己设置的口令；由云端管理员提供文件时，让管理员通过另一渠道告知口令。导入成功后连接材料由 Yandu 保存，原始下载文件可移到私有备份位置。
 
 连接包上限为 256 KB。v2 存储包显示设备、存储转发端口与网关信息；v1 显示 SSH 指纹、站点和页面范围。
 
@@ -45,13 +49,13 @@ description: 导入 schema v2 存储连接包、核对设备与 TLS 隧道，以
 macOS：
 
 ```bash
-.local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" connection import ./owner.yandu-profile
+.local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" connection import "$HOME/Downloads/owner.yandu-profile"
 ```
 
 Windows：
 
 ```powershell
-& .\.local\bin\yandu.exe --state-dir "$PWD\.yandu-storage-dev" connection import .\owner.yandu-profile
+& .\.local\bin\yandu.exe --state-dir "$PWD\.yandu-storage-dev" connection import "$env:USERPROFILE\Downloads\owner.yandu-profile"
 ```
 
 口令由终端读取，不写在参数或日志中。安装版使用包内启动器/实际程序路径和系统状态目录，见[CLI](/reference/cli)。
