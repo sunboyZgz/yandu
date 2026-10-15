@@ -6,6 +6,12 @@ if [[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]];then
 fi
 YANDU_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 [[ -f $YANDU_SOURCE/yandu-cloud && -f $YANDU_SOURCE/bin/frps ]] || { echo '需要完整发布包';exit 1; }
+[[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo '升级需要 Ubuntu x64';exit 1; }
+. /etc/os-release
+if [[ ${ID:-} != ubuntu || ! ${VERSION_ID:-} =~ ^[0-9]{2}\.[0-9]{2}$ ]] || (( 10#${VERSION_ID/./} < 2404 ));then echo '升级需要 Ubuntu 24.04+ x64，未修改系统。' >&2;exit 1;fi
+systemctl show --property=Version --value >/dev/null || { echo 'systemd 管理器不可用，未修改系统。' >&2;exit 1; }
+"$YANDU_SOURCE/yandu-cloud" tools prepare --check --role cloud --config "$YANDU_SOURCE/.yandu-preflight.json" --component-root "$YANDU_SOURCE" --tool "frps=$YANDU_SOURCE/bin/frps"
+echo '升级影响：备份并替换 Yandu 云端组件、工具记录和 frps 服务启动配置，重启 Yandu 服务；不安装系统依赖或修改持久 PATH。'
 YANDU_BACKUP="/etc/yandu/backups/upgrade-$(date +%s)"
 mkdir -p "$YANDU_BACKUP";chmod 0700 "$YANDU_BACKUP"
 cp /usr/local/lib/yandu/yandu-cloud /usr/local/lib/yandu/frps "$YANDU_BACKUP/"

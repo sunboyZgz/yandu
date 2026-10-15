@@ -72,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", required=True)
     parser.add_argument("--device", default="owner")
+    parser.add_argument("--allow-system-install", action="store_true")
     args = parser.parse_args(argv)
     if sys.version_info < (3, 10):
         print("源码安装需要 Python 3.10+。", file=sys.stderr)
@@ -83,9 +84,10 @@ def main(argv: list[str] | None = None) -> int:
             print("云端组件已准备完成，开始安装服务并生成连接包…", flush=True)
             # Keep stdin/stdout attached to the terminal for the passphrase prompt.
             try:
+                installer_args = ["--allow-system-install"] if args.allow_system_install else []
                 subprocess.run(
                     ["bash", str(stage / "install-cloud.sh"), "--mode", "storage-only",
-                     "--server", args.server, "--device", args.device], check=True,
+                     "--server", args.server, "--device", args.device, *installer_args], check=True,
                 )
             except subprocess.CalledProcessError as error:
                 raise RuntimeError(

@@ -14,7 +14,7 @@ SCRIPTS = Path(__file__).resolve().parent
 class CloudInstallPreflightTests(unittest.TestCase):
     def run_installer(self, version="26.04", distribution="ubuntu", system="Linux",
                       architecture="x86_64", missing=None, source=False,
-                      dry_run=True, python_available=True, existing=False, environment_ok=True, pending_pair=False):
+                      dry_run=True, python_available=True, existing=False, environment_ok=True, pending_pair=False, systemd_ok=True, allow_system_install=False):
         with tempfile.TemporaryDirectory(prefix="yandu cloud preflight ") as temporary:
             stage = Path(temporary)
             commands = stage / "commands"
@@ -52,7 +52,7 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 (stage / "cmd/yandu-cloud").mkdir(parents=True)
                 shutil.copyfile(SCRIPTS / "prepare-cloud-install.py", scripts / "prepare-cloud-install.py")
                 (scripts / "setup-cloud-env.sh").write_text(
-                    "echo 'environment preparation'\nexit " + ("0" if environment_ok else "1") + "\n")
+                    "printf 'environment preparation:%s\\n' \"$*\"\nexit " + ("0" if environment_ok else "1") + "\n")
             for name in ("bash", "dirname"):
                 (commands / name).symlink_to(shutil.which(name))
             uname = commands / "uname"
@@ -62,7 +62,10 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 if name == missing:
                     continue
                 command = commands / name
-                command.write_text(f"#!{bash}\nexit 1\n" if name == "id" else f"#!{bash}\necho 'dry-run unexpectedly invoked {name}' >&2\nexit 99\n")
+                if name == 'systemctl':
+                    command.write_text(f'#!{bash}\nif [[ "$*" == "show --property=Version --value" ]];then ' + ('echo 257;exit 0' if systemd_ok else 'echo "systemd is not PID 1" >&2;exit 1') + ';fi\nexit 99\n')
+                else:
+                    command.write_text(f"#!{bash}\nexit 1\n" if name == "id" else f"#!{bash}\necho 'dry-run unexpectedly invoked {name}' >&2\nexit 99\n")
                 command.chmod(0o755)
             if python_available:
                 python = commands / "python3"
@@ -72,6 +75,8 @@ class CloudInstallPreflightTests(unittest.TestCase):
                          "--server", "203.0.113.10", "--device", "owner"]
             if dry_run:
                 arguments.append("--dry-run")
+            if allow_system_install:
+                arguments.append('--allow-system-install')
             return subprocess.run(
                 arguments,
                 env={**os.environ, "PATH": str(commands), "BASH_ENV": "/dev/null"},
@@ -102,6 +107,14 @@ class CloudInstallPreflightTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("需要 Ubuntu x64", result.stdout + result.stderr)
 
+    def test_command_present_but_systemd_unavailable_rejects_without_mutation(self):
+        result = self.run_installer(source=True, dry_run=False, systemd_ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('systemd 管理器不可用', result.stderr)
+        self.assertNotIn('environment preparation', result.stdout)
+        self.assertNotIn('source preparation:', result.stdout)
+        self.assertNotIn('unexpectedly invoked', result.stderr)
+
     def test_missing_dependency_is_reported_before_installation(self):
         for name in ("systemctl", "useradd", "apt-get"):
             with self.subTest(name=name):
@@ -126,6 +139,12 @@ class CloudInstallPreflightTests(unittest.TestCase):
         self.assertIn("storage-only", result.stdout)
         self.assertNotIn("source preparation:", result.stdout)
         self.assertNotIn("environment preparation", result.stdout)
+
+    def test_explicit_system_install_flag_reaches_environment_and_source_handoff(self):
+        result = self.run_installer(source=True, dry_run=False, allow_system_install=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('environment preparation:--allow-system-install', result.stdout)
+        self.assertIn('<--allow-system-install>', result.stdout)
 
     def test_failed_environment_never_builds_or_installs(self):
         result = self.run_installer(source=True, dry_run=False, environment_ok=False)

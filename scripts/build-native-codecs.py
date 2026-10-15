@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Build locked macOS ARM64 codecs with a macOS 14 deployment target and local dependencies."""
 import argparse,hashlib,json,os,pathlib,shutil,subprocess,sys,tarfile,urllib.request
+from runtime_checks import check_source_environment, require_build_tools
 ROOT=pathlib.Path(__file__).resolve().parents[1];LOCK=json.loads((ROOT/'release/storage-components.lock.json').read_text())
 if sys.platform!='darwin' or os.uname().machine!='arm64':raise RuntimeError('Use the Windows component preparer on Windows; this codec builder targets macOS ARM64')
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--only',choices=('all','heif','ffmpeg'),default='all');options=parser.parse_args()
+GO=check_source_environment(ROOT,media=True)
+require_build_tools(('cmake','pkg-config','xcrun','make') + (('git',) if options.only in ('all','ffmpeg') else ()))
 BASE=ROOT/'.local/upstream';BASE.mkdir(parents=True,exist_ok=True);PREFIX=ROOT/'.local/codecs-macos';PREFIX.mkdir(parents=True,exist_ok=True)
 LOG=(BASE/'codecs-build.log').open('w')
 def run(args,cwd=None,env=None):
  print('Build:',str(args[0]),flush=True);subprocess.run([str(v) for v in args],cwd=cwd,env=env,check=True,stdout=LOG,stderr=subprocess.STDOUT)
 def source_module(name,lock):
- data=json.loads(subprocess.check_output(['go','mod','download','-json',lock['module']+'@'+lock['moduleVersion']],text=True))
+ data=json.loads(subprocess.check_output([GO,'mod','download','-json',lock['module']+'@'+lock['moduleVersion']],text=True,env={**os.environ,'GOTOOLCHAIN':'local'}))
  if hashlib.sha256(pathlib.Path(data['Zip']).read_bytes()).hexdigest()!=lock['zipSHA256']:raise RuntimeError('Source checksum mismatch: '+name)
  dest=BASE/(name+'-sealed-source')
  if not dest.exists():shutil.copytree(data['Dir'],dest)

@@ -202,7 +202,7 @@ func output(ctx context.Context, path string, args ...string) (string, error) {
 	defer cancel()
 	b, e := exec.CommandContext(ctx, path, args...).CombinedOutput()
 	if e != nil {
-		return "", fmt.Errorf("tool cannot execute: %w", e)
+		return "", fmt.Errorf("tool cannot execute: %w; output: %s", e, strings.TrimSpace(string(b)))
 	}
 	return string(b), nil
 }
@@ -282,6 +282,14 @@ func templates(binary string, c Config, root string) string {
 	return ""
 }
 func Prepare(ctx context.Context, o Options) (Config, error) {
+	supported := (runtime.GOOS == "darwin" && runtime.GOARCH == "arm64") || ((runtime.GOOS == "windows" || runtime.GOOS == "linux") && runtime.GOARCH == "amd64")
+	if !supported {
+		return Config{}, fmt.Errorf("unsupported tool platform %s/%s; no dependencies were prepared", runtime.GOOS, runtime.GOARCH)
+	}
+	required, e := names(o.Role, o.NoMedia)
+	if e != nil {
+		return Config{}, e
+	}
 	if !o.NoSave {
 		if e := os.MkdirAll(filepath.Dir(o.ConfigPath), 0700); e != nil {
 			return Config{}, e
@@ -305,10 +313,6 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 	c.SchemaVersion = 1
 	c.Role = o.Role
 	c.NoMedia = o.NoMedia
-	required, e := names(o.Role, o.NoMedia)
-	if e != nil {
-		return c, e
-	}
 	lookup := o.Lookup
 	if lookup == nil {
 		lookup = exec.LookPath
@@ -371,16 +375,24 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 		}
 		last := error(nil)
 		found := false
+		seen := map[string]bool{}
+		rejected := func(path string, e error) bool {
+			if last == nil || !os.IsNotExist(e) {
+				last = fmt.Errorf("%s: %w", path, e)
+			}
+			if o.Progress != nil && !os.IsNotExist(e) {
+				fmt.Fprintf(o.Progress, "%s 检查未通过：%s（%v）\n", name, path, e)
+			}
+			return false
+		}
 		accept := func(item candidate) bool {
 			path, e := canonical(item.path)
 			if e != nil {
-				last = e
-				return false
+				return rejected(item.path, e)
 			}
 			if item.source == "bundled" {
 				if e = verifyBundled(root, path); e != nil {
-					last = e
-					return false
+					return rejected(path, e)
 				}
 			}
 			version := specifications()[name].Version
@@ -390,38 +402,44 @@ func Prepare(ctx context.Context, o Options) (Config, error) {
 				version, e = inspect(ctx, name, path)
 			}
 			if e != nil {
-				last = e
-				return false
+				return rejected(path, e)
 			}
 			if o.Role == "build" && name == "node" {
 				if _, e = NPMEntry(path); e != nil {
-					last = e
-					return false
+					return rejected(path, e)
 				}
 			}
 			if name == "sftpgo" {
 				if p := templates(path, c, root); p != "" {
 					c.SFTPGoTemplates = p
 				} else {
-					last = fmt.Errorf("original SFTPGo templates/email missing")
-					return false
+					return rejected(path, fmt.Errorf("original SFTPGo templates/email missing"))
 				}
 			}
 			digest, e := hash(path)
 			if e != nil {
-				last = e
-				return false
+				return rejected(path, e)
 			}
 			resolved[name] = Tool{Path: path, Version: version, SHA256: digest, Source: item.source, Pinned: explicit != ""}
+			if o.Progress != nil {
+				fmt.Fprintf(o.Progress, "%s 已验证：%s（版本 %s，来源 %s）\n", name, path, version, item.source)
+			}
 			return true
 		}
 		for _, item := range list {
+			if seen[item.path] {
+				continue
+			}
+			seen[item.path] = true
 			if accept(item) {
 				found = true
 				break
 			}
 		}
 		if !found && explicit == "" && !o.NoInstall {
+			if o.Progress != nil {
+				fmt.Fprintf(o.Progress, "%s 没有通过检查的候选；仅准备私有副本到 %s，保留系统工具与 PATH。\n", name, filepath.Join(filepath.Dir(o.ConfigPath), "tools"))
+			}
 			install := o.Install
 			if install == nil {
 				install = func(ctx context.Context, name, dest string) (string, error) {

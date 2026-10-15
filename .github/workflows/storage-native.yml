@@ -2,7 +2,7 @@ name: Native storage contract
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['internal/storage/**', 'internal/platform/**', 'internal/inventory/**', 'internal/toolchain/**', 'internal/adapters/**', 'internal/cloud/**', 'internal/model/**', 'internal/secrets/**', 'internal/localapi/**', 'cmd/yandu/**', 'cmd/yandu-cloud/**', 'media/**', 'scripts/*cloud*', 'scripts/*storage*', 'scripts/dev.py', 'scripts/build-native-codecs.py', 'release/*storage*', 'release/locks.go', 'release/prepare-native-components.py', 'tests/fixtures/**', 'schemas/**', 'scripts/check-*', 'web/**']
+    paths: ['internal/storage/**', 'internal/platform/**', 'internal/inventory/**', 'internal/toolchain/**', 'internal/adapters/**', 'internal/cloud/**', 'internal/model/**', 'internal/secrets/**', 'internal/localapi/**', 'cmd/yandu/**', 'cmd/yandu-cloud/**', 'media/**', 'scripts/*cloud*', 'scripts/*storage*', 'scripts/*windows*', 'setup-windows-env.ps1', '.github/workflows/storage-native.yml', 'scripts/dev.py', 'scripts/dev.ps1', 'scripts/runtime_checks.py', 'scripts/test_*.py', 'scripts/build-*.py', 'release/build.py', 'release/*storage*', 'release/locks.go', 'release/prepare-native-components.py', 'tests/fixtures/**', 'schemas/**', 'scripts/check-*', 'web/**']
 jobs:
   contract:
     strategy:
@@ -21,6 +21,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+      - name: Verify Windows runtime discovery and installation policy
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          & .\scripts\test_windows_env.ps1
+          $nativePython = (Get-Command python.exe -CommandType Application).Source
+          & .\scripts\test_windows_python_probe.ps1 -PythonExe $nativePython
+      - name: Source environment admission tests
+        shell: pwsh
+        run: |
+          if($IsWindows){
+            foreach($test in @('test_runtime_checks.py','test_dev.py','test_storage_dev.py')){
+              python "scripts/$test"
+              if($LASTEXITCODE -ne 0){throw "Source environment test failed: $test"}
+            }
+          }else{
+            python -m unittest discover -s scripts -p 'test_*.py'
+            if($LASTEXITCODE -ne 0){throw 'Source environment tests failed'}
+          }
       - name: Build macOS codecs from locked sources
         if: runner.os == 'macOS'
         run: |

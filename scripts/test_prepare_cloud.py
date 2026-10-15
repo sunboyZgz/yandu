@@ -105,6 +105,11 @@ class CloudSourcePreparationTests(unittest.TestCase):
         run.assert_not_called()
         self.assertFalse(prepare.call_args.args[1].exists())
 
+    def test_explicit_system_install_permission_survives_packaged_installer_handoff(self):
+        with patch.object(cloud, 'prepare'), patch.object(cloud.subprocess, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cloud.main(['--server','203.0.113.10','--allow-system-install']), 0)
+        self.assertEqual(run.call_args.args[0][-1], '--allow-system-install')
+
     def test_installer_failure_keeps_recovery_explanation_and_cleans_staging(self):
         errors = io.StringIO()
         with patch.object(cloud, "prepare") as prepare, \

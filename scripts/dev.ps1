@@ -3,29 +3,21 @@ param(
     [string]$Mode = 'run',
     [string]$BinDir = '.local/bin',
     [string]$StateDir = '.yandu',
+    [string]$PythonExe,
     [switch]$NoOpen
 )
 $ErrorActionPreference = 'Stop'
 
 # Windows PowerShell 5.1 and PowerShell 7; no administrator requirement or service registration.
-$YanduPython = $null
-$YanduPythonPrefix = @()
-foreach ($YanduCandidate in @(
-    @{ Name = 'py'; Prefix = @('-3') },
-    @{ Name = 'python'; Prefix = @() },
-    @{ Name = 'python3'; Prefix = @() }
-)) {
-    $YanduCommand = Get-Command $YanduCandidate.Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $YanduCommand) { continue }
-    $YanduProbePrefix = $YanduCandidate.Prefix
-    & $YanduCommand.Source @YanduProbePrefix -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        $YanduPython = $YanduCommand.Source
-        $YanduPythonPrefix = $YanduCandidate.Prefix
-        break
-    }
-}
-if ($null -eq $YanduPython) { throw 'Python 3.10+ is required. Install Python and reopen PowerShell.' }
+$YanduPython = & {
+    param($SelectedPython)
+    # Keep the setup script's parameters in a child scope so source directories
+    # supplied above are preserved. Dot-sourcing only defines the probe functions.
+    . (Join-Path $PSScriptRoot 'setup-windows-env.ps1')
+    Assert-YanduWindowsHost
+    Find-YanduPython ([version]'3.10.0') -PythonExe $SelectedPython
+} $PythonExe
+if ($null -eq $YanduPython) { throw 'Python 3.10+ x64 is required. Check the detection output or select an existing interpreter with -PythonExe; no installer was called.' }
 
 $YanduArguments = @(
     (Join-Path $PSScriptRoot 'dev.py'), $Mode.ToLowerInvariant(),
@@ -34,5 +26,5 @@ $YanduArguments = @(
     '--state-dir', $StateDir
 )
 if ($NoOpen) { $YanduArguments += '--no-open' }
-& $YanduPython @YanduPythonPrefix @YanduArguments
+& $YanduPython.Path @YanduArguments
 exit $LASTEXITCODE

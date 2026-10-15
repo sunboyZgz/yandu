@@ -32,11 +32,11 @@ class GoEnvironmentTests(unittest.TestCase):
                                 ("2.0.0", True), ("1.26.1", False), ("1.25.9", False),
                                 ("1.27rc1", False)):
             with self.subTest(version=value), patch.object(env.subprocess, "run", return_value=
-                    subprocess.CompletedProcess([], 0, f"go version go{value} linux/amd64\n", "")) as run:
+                    subprocess.CompletedProcess([], 0, f"go version go{value} linux/amd64\n", "")) as run, patch.object(env.Path, 'exists', return_value=True):
                 self.assertEqual(env.probe_go("/go", "1.26.2"), value if accepted else None)
                 self.assertEqual(run.call_args.kwargs["env"]["GOTOOLCHAIN"], "local")
                 self.assertEqual(run.call_args.kwargs["cwd"], "/")
-        with patch.object(env.subprocess, "run", return_value=
+        with patch.object(env.Path, 'exists', return_value=True), patch.object(env.subprocess, "run", return_value=
                 subprocess.CompletedProcess([], 0, "go version go1.27.1 linux/arm64\n", "")):
             self.assertIsNone(env.probe_go("/go", "1.26.2"))
 
@@ -76,7 +76,7 @@ class GoEnvironmentTests(unittest.TestCase):
              patch.object(env.urllib.request, "urlopen", return_value=io.BytesIO(b"corrupt")), \
              patch.object(env, "extract_go") as extract, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "SHA256"):
-                env.ensure_go("1.26.2", self.prefix)
+                env.ensure_go("1.26.2", self.prefix, allow_system_install=True)
         extract.assert_not_called()
         self.assertEqual(list(self.prefix.iterdir()), [])
 
@@ -108,7 +108,7 @@ class GoEnvironmentTests(unittest.TestCase):
         with patch.object(env, "find_go", return_value=None), patch.object(env, "go_asset", return_value=asset), \
              patch.object(env.urllib.request, "urlopen", return_value=io.BytesIO(data)), \
              patch.object(env, "probe_go", return_value="1.26.2"), contextlib.redirect_stdout(io.StringIO()):
-            path, version = env.ensure_go("1.26.2", self.prefix)
+            path, version = env.ensure_go("1.26.2", self.prefix, allow_system_install=True)
         self.assertEqual(version, "1.26.2")
         self.assertEqual(Path(path).read_bytes(), b"fake Go")
         self.assertTrue(os.access(path, os.X_OK))
@@ -126,13 +126,27 @@ class GoEnvironmentTests(unittest.TestCase):
         with patch.object(env, "find_go", return_value=None), patch.object(env, "probe_go", return_value=None), \
              patch.object(env, "go_asset") as fetch:
             with self.assertRaisesRegex(RuntimeError, "已有无效工具目录"):
-                env.ensure_go("1.26.2", self.prefix)
+                env.ensure_go("1.26.2", self.prefix, allow_system_install=True)
         self.assertEqual(marker.read_text(), "keep")
+        fetch.assert_not_called()
+
+    def test_default_never_installs_go_into_system_prefix(self):
+        with patch.object(env, 'find_go', return_value=None), patch.object(env, 'go_asset') as fetch:
+            with self.assertRaisesRegex(RuntimeError, '--allow-system-install'):
+                env.ensure_go('1.26.2', self.prefix)
+        fetch.assert_not_called()
+        self.assertFalse(self.prefix.exists())
+
+    def test_existing_go_probe_error_never_triggers_download_even_when_allowed(self):
+        with patch.object(env.Path, 'exists', return_value=True), patch.object(env.subprocess, 'run', side_effect=subprocess.TimeoutExpired('/broken/go', 15)), \
+             patch.object(env, 'go_asset') as fetch, contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, '不按缺失处理'):
+                env.ensure_go('1.26.2', self.prefix, allow_system_install=True)
         fetch.assert_not_called()
 
 
 class UbuntuBootstrapTests(unittest.TestCase):
-    def run_bootstrap(self, args=(), missing=(), apt_ok=True, python_ok=True, version="26.04"):
+    def run_bootstrap(self, args=(), missing=(), apt_ok=True, python_ok=True, version="26.04", systemd_ok=True, package_probe_ok=True):
         with tempfile.TemporaryDirectory(prefix="yandu bootstrap ") as temporary:
             stage = Path(temporary)
             commands = stage / "commands"
@@ -149,10 +163,10 @@ class UbuntuBootstrapTests(unittest.TestCase):
                 (commands / name).symlink_to(shutil.which(name))
             fake = {
                 "uname": "case $1 in -s) echo Linux;; -m) echo x86_64;; esac",
-                "systemctl": "exit 99", "useradd": "exit 99",
-                "dpkg-query": 'case $3 in ' + "|".join(missing or ("no-missing-package",)) + ") exit 1;; *) printf 'install ok installed';; esac",
+                "systemctl": "echo 257" if systemd_ok else 'echo "systemd unavailable" >&2;exit 1', "useradd": "exit 99",
+                "dpkg-query": ('case $3 in ' + "|".join(missing or ("no-missing-package",)) + ") exit 1;; *) printf 'install ok installed';; esac") if package_probe_ok else 'echo "package database unavailable" >&2;exit 2',
                 "apt-get": 'printf "apt:<%s>\\n" "$*"; exit ' + ("0" if apt_ok else "42"),
-                "python3": 'if [[ $1 == -c ]]; then exit ' + ("0" if python_ok else "1") + '; fi; printf "python:<%s>\\n" "$*"',
+                "python3": 'if [[ $1 == -I && $2 == -c ]]; then exit ' + ("0" if python_ok else "10") + '; fi; printf "python:<%s>\\n" "$*"',
             }
             for name, body in fake.items():
                 path = commands / name
@@ -162,11 +176,11 @@ class UbuntuBootstrapTests(unittest.TestCase):
                                   capture_output=True, text=True, timeout=10)
 
     def test_missing_packages_are_installed_before_go_resolution(self):
-        result = self.run_bootstrap(missing=("python3", "acl"))
+        result = self.run_bootstrap(("--allow-system-install",), missing=("acl",))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("apt:<update>", result.stdout)
-        self.assertIn("apt:<install -y --no-install-recommends python3 acl>", result.stdout)
-        self.assertLess(result.stdout.index("apt:<install"), result.stdout.index("python:<"))
+        self.assertIn("apt:<install -y --no-install-recommends acl>", result.stdout)
+        self.assertLess(result.stdout.index("python:<"), result.stdout.index("apt:<install"))
 
     def test_repeated_run_skips_apt_when_packages_exist(self):
         result = self.run_bootstrap()
@@ -180,7 +194,7 @@ class UbuntuBootstrapTests(unittest.TestCase):
                 result = self.run_bootstrap((flag,), missing=("python3", "acl"), python_ok=False)
                 self.assertEqual(result.returncode, code, result.stderr)
                 self.assertNotIn("apt:<", result.stdout)
-                self.assertNotIn("python:<", result.stdout)
+                if flag == '--check': self.assertNotIn('cloud_env.py --allow-system-install', result.stdout)
 
     def test_check_passes_read_only_flag_to_runtime_resolver(self):
         result = self.run_bootstrap(("--check",))
@@ -189,15 +203,34 @@ class UbuntuBootstrapTests(unittest.TestCase):
         self.assertNotIn("apt:<", result.stdout)
 
     def test_failed_apt_stops_before_runtime_preparation(self):
-        result = self.run_bootstrap(missing=("acl",), apt_ok=False)
+        result = self.run_bootstrap(("--allow-system-install",), missing=("acl",), apt_ok=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn("python:<", result.stdout)
+        self.assertNotIn('cloud_env.py --allow-system-install', result.stdout)
 
     def test_old_ubuntu_is_rejected_before_package_commands(self):
         result = self.run_bootstrap(version="22.04")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Ubuntu 24.04", result.stderr)
         self.assertNotIn("apt:<", result.stdout)
+
+    def test_default_reports_missing_system_packages_without_calling_apt(self):
+        result = self.run_bootstrap(missing=('acl',))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('--allow-system-install', result.stderr)
+        self.assertNotIn('apt:<', result.stdout)
+
+    def test_unavailable_systemd_rejects_before_even_allowed_apt(self):
+        result = self.run_bootstrap(('--allow-system-install',), missing=('acl',), systemd_ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('systemd 管理器不可用', result.stderr)
+        self.assertNotIn('apt:<', result.stdout)
+
+    def test_package_database_probe_error_is_not_missing_package(self):
+        result = self.run_bootstrap(('--allow-system-install',), package_probe_ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('不按缺失处理', result.stderr)
+        self.assertIn('package database unavailable', result.stderr)
+        self.assertNotIn('apt:<', result.stdout)
 
 
 if __name__ == "__main__":

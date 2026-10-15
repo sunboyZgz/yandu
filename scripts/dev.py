@@ -10,7 +10,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import platform
 import re
 import shutil
 import signal
@@ -19,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from runtime_checks import require_host, check_source_environment, check_node_npm
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGETS = {"windows-amd64", "linux-amd64", "darwin-arm64"}
@@ -30,13 +30,7 @@ class DevError(RuntimeError):
 
 
 def host_target() -> str:
-    system = {"win32": "windows", "darwin": "darwin", "linux": "linux"}.get(sys.platform)
-    machine = platform.machine().lower()
-    arch = {"amd64": "amd64", "x86_64": "amd64", "arm64": "arm64", "aarch64": "arm64"}.get(machine)
-    target = f"{system}-{arch}"
-    if target not in TARGETS:
-        raise DevError(f"Unsupported development platform: {sys.platform}/{machine}. Supported: {', '.join(sorted(TARGETS))}")
-    return target
+    return require_host()
 
 
 def component_assets(root: Path, target: str) -> list[tuple[str, dict]]:
@@ -64,16 +58,8 @@ def tool(name: str) -> str:
 
 
 def npm_command(*args: str) -> list[str]:
-    npm = Path(tool("npm"))
-    if sys.platform == "win32":
-        # Invoke npm's JavaScript entry with Node, avoiding cmd.exe quoting of .cmd paths.
-        node = Path(tool("node"))
-        for directory in (npm.resolve().parent, node.resolve().parent):
-            entry = directory / "node_modules/npm/bin/npm-cli.js"
-            if entry.is_file():
-                return [str(node), str(entry), *args]
-        raise DevError("Cannot locate npm-cli.js beside Node/npm. Install Node.js with its bundled npm.")
-    return [str(npm), *args]
+    # Run the checked npm JavaScript entry directly, avoiding shell wrappers.
+    return [*check_node_npm(), *args]
 
 
 def execute(args: list[str], root: Path, **kwargs) -> subprocess.CompletedProcess:
@@ -124,19 +110,21 @@ def ensure_npm(root: Path, folder: str, node: Path) -> None:
 
 
 def build(root: Path, bindir: Path, target: str, tools_config: Path | None = None, role: str = 'readonly', no_media: bool = False, overrides: dict | None = None) -> None:
+    go = check_source_environment(root, media=role == 'local' and not no_media)
+    build_env = {**os.environ, 'GOTOOLCHAIN': 'local', 'PATH': str(Path(go).parent) + os.pathsep + os.environ.get('PATH', '')}
     if target == host_target():
         check_output_files(bindir,target)
         bindir.mkdir(parents=True,exist_ok=True)
         config=tools_config or bindir.parent/'tools.json'
         with tempfile.TemporaryDirectory(prefix='.tool-bootstrap-',dir=bindir.parent) as temporary:
             helper=Path(temporary)/executable_name(target)
-            execute([tool('go'),'build','-o',str(helper),'./cmd/yandu'],root)
+            execute([go,'build','-o',str(helper),'./cmd/yandu'],root,env=build_env)
             def prepare(config_path,selected_role,skip_media=False,explicit=None):
                 args=[str(helper),'tools','prepare','--config',str(config_path),'--component-root',str(root),'--role',selected_role,'--json']
                 if skip_media:args.append('--no-media')
                 for name,path in (explicit or {}).items():args += ['--tool',name+'='+str(path)]
                 print(f'Preparing {selected_role} dependencies...',flush=True)
-                try:return json.loads(execute(args,root,stdout=subprocess.PIPE,env={**os.environ,'YANDU_BUILD_PYTHON':sys.executable}).stdout)
+                try:return json.loads(execute(args,root,stdout=subprocess.PIPE,env={**build_env,'YANDU_BUILD_PYTHON':sys.executable}).stdout)
                 except subprocess.CalledProcessError as error:
                     detail=error.stderr.decode(errors='replace') if isinstance(error.stderr,bytes) else str(error.stderr or '')
                     raise DevError('Dependency preparation failed: '+(detail[-4000:] or 'see the component error above; verified download caches are kept.')) from error
@@ -147,7 +135,7 @@ def build(root: Path, bindir: Path, target: str, tools_config: Path | None = Non
             if role=='local' and not no_media:ensure_npm(root,'media',node)
             env={**os.environ,'PATH':str(node.parent)+os.pathsep+os.environ.get('PATH','')}
             execute([*npm_for_node(node),'--prefix',str(root/'web'),'run','build'],root,env=env)
-            execute([tool('go'),'build','-o',str(helper),'./cmd/yandu'],root)
+            execute([go,'build','-o',str(helper),'./cmd/yandu'],root,env=build_env)
             check_output_files(bindir,target)
             os.replace(helper,bindir/executable_name(target))
         print(f'Built {target}; dependency paths: {config}',flush=True)
@@ -155,7 +143,6 @@ def build(root: Path, bindir: Path, target: str, tools_config: Path | None = Non
     # Cross-build checks cannot execute target binaries. Keep the locked archive
     # build flow, without attempting to register foreign tools as runnable.
     check_output_files(bindir, target)
-    go = tool("go")
     npm = npm_command()
     execute([*npm, "--prefix", str(root / "web"), "ci"], root)
     execute([*npm, "--prefix", str(root / "web"), "run", "build"], root)
@@ -170,7 +157,7 @@ def build(root: Path, bindir: Path, target: str, tools_config: Path | None = Non
     with tempfile.TemporaryDirectory(prefix=".dev-build-", dir=bindir.parent) as temporary:
         stage = Path(temporary)
         system, arch = target.split("-")
-        env = {**os.environ, "GOOS": system, "GOARCH": arch, "CGO_ENABLED": "0"}
+        env = {**build_env, "GOOS": system, "GOARCH": arch, "CGO_ENABLED": "0"}
         execute([go, "build", "-o", str(stage / executable_name(target)), "./cmd/yandu"], root, env=env)
         suffix = ".exe" if system == "windows" else ""
         for directory, name in ((components[0], "caddy"), (components[1], "frpc")):
@@ -246,6 +233,8 @@ def stop_child(child: subprocess.Popen, timeout: float = 15) -> None:
 
 def run_agent(root: Path, bindir: Path, state: Path, target: str, no_open: bool, timeout: float, skip_build: bool = False) -> None:
     require_native(target)
+    if not skip_build:
+        check_source_environment(root)
     ensure_ports_free()
     if state == bindir or state.is_relative_to(bindir) or bindir.is_relative_to(state):
         raise DevError("Binary and state directories must be separate.")
@@ -320,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nSource development stopped.", file=sys.stderr)
         return 130
-    except (DevError, OSError, subprocess.SubprocessError, ValueError) as error:
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError) as error:
         print(f"Development error: {error}", file=sys.stderr)
         return 1
 

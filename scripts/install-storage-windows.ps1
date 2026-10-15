@@ -2,12 +2,23 @@
 #Requires -RunAsAdministrator
 param([string]$InstallPath="$env:ProgramFiles\Yandu",[string]$StatePath="$env:ProgramData\Yandu",[switch]$SkipOpen)
 $ErrorActionPreference='Stop'
-if(-not [Environment]::Is64BitOperatingSystem -or [Environment]::OSVersion.Version.Build -lt 22000){throw '需要 Windows 11 x64'}
+if($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or -not [Environment]::Is64BitProcess -or [Environment]::OSVersion.Version.Build -lt 22000){throw '需要 Windows 11+ x64 和 64 位 PowerShell；未修改系统'}
 $Source=$PSScriptRoot
 if([IO.Path]::GetFullPath($InstallPath) -ne [IO.Path]::GetFullPath("$env:ProgramFiles\Yandu")){throw '使用受管 Program Files\Yandu 目录'}
 foreach($file in @('yandu.exe','bin\sftpgo.exe','bin\node.exe','bin\ffmpeg.exe','bin\ffprobe.exe','bin\heif-thumbnailer.exe','bin\caddy.exe','bin\frpc.exe','media\worker.mjs','component-receipt.json')){if(-not (Test-Path "$Source\$file")){throw "完整原生组件包缺少 $file"}}
 & "$Source\yandu.exe" storage-components-verify --component-root $Source
 if($LASTEXITCODE -ne 0){throw '原生组件 SHA256 校验失败'}
+$ComponentArguments=@('tools','prepare','--check','--role','local','--component-root',$Source,'--config',"$Source\.yandu-preflight.json")
+foreach($name in @('caddy','frpc','sftpgo','node','ffmpeg','ffprobe','heif-thumbnailer')){$ComponentArguments+=@('--tool',"$name=$Source\bin\$name.exe")}
+& "$Source\yandu.exe" @ComponentArguments
+if($LASTEXITCODE -ne 0){throw '组件无法在当前系统运行；未修改服务或安装目录'}
+foreach($directory in @($InstallPath,$StatePath)){
+ $root=[IO.Path]::GetPathRoot([IO.Path]::GetFullPath($directory))
+ if($root -notmatch '^[A-Za-z]:\\$'){throw '安装与状态目录需要本机固定 NTFS 卷'}
+ $volume=Get-Volume -DriveLetter $root.Substring(0,1) -ErrorAction Stop
+ if($volume.FileSystem -ne 'NTFS' -or $volume.DriveType -ne 'Fixed'){throw "安装与状态目录需要固定 NTFS 卷：$directory"}
+}
+Write-Host 'Installation changes: Program Files/ProgramData Yandu directories, Yandu/YanduSFTPGo services and their ACLs. No Python/Go/Node system installation or persistent PATH change.'
 foreach($name in @('Yandu','YanduSFTPGo')){if((Get-Service $name -ErrorAction SilentlyContinue) -and -not (Test-Path "$StatePath\installation.json")){throw '缺少安装归属记录，拒绝接管'}}
 $Operator=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 foreach($name in @('Yandu','YanduSFTPGo')){Stop-Service $name -ErrorAction SilentlyContinue}

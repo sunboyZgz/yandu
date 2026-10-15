@@ -94,6 +94,10 @@ YANDU_FFPROBE="$PWD/.local/ffmpeg-9.0.2/bin/ffprobe" node scripts/check-media.mj
 
 2026-10-14 运行时版本检查：Go 的模块最低版本保持 1.26.2，Node 改为接受 22.12.0 及以上稳定版。实际使用官方 Node 24.21.0 验证 PATH 复用、实际版本写入工具配置、Vite 生产构建和 Sharp/ExifTool 模块加载；没有下载替代的 Node 22。单元测试覆盖最低版本、较新主版本、过旧版本、预发布版本及持久化；工具链 race、Go 全量测试与 vet 通过。这些检查不替代各运行时版本下的完整媒体任务和系统安装验收。
 
+2026-10-15 Windows 环境准备：在 macOS PowerShell 7 的 Legacy 原生命令参数模式下，使用真实 Python 3.14.2 验证版本读取、含空格路径和 Conda 优先选择，复现并修复旧探针的引号问题。模拟安装器测试覆盖 Python 3.13.12 x64 复用、版本不足、32 位、检测执行失败、显式解释器失败、只检查及系统安装必须显式启用。两组测试已接入 Windows CI 的 `powershell` 步骤；本次未运行 Windows PowerShell 5.1、WinGet 或 Visual Studio 实际安装。
+
+2026-10-15 环境与安装影响审查：源码入口新增系统最低版本、Python 位数与 Go 本机架构检查；Ubuntu apt/专用 Go 写入改为显式 `--allow-system-install`，实际探测 systemd 管理器。66 项 Python 测试覆盖错误探针、版本、系统支持、安装开关转交和失败前无安装；PowerShell 模拟策略测试覆盖构建工具错误与安装顺序。Go 全量测试、vet 和工具链 race 通过，Windows/Linux 客户端/云端交叉构建通过。macOS 实际运行 `tools prepare --check` 检查七个原生组件与媒体模块，确认未创建状态目录、配置或锁文件；系统旧 FFmpeg/libheif 被明确报告后保留，复用项目正确组件。另完成完整媒体依赖准备与客户端构建，未启动 Agent/SFTPGo。本次没有执行 apt、WinGet、VS 安装或正式服务升级，不代表 Windows/Ubuntu 真机安装验收。
+
 | 项目 | 当前状态 |
 | --- | --- |
 | macOS 原生 SFTPGo、存储、媒体 | 已实测 |

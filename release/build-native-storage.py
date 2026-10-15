@@ -4,8 +4,11 @@ import argparse,hashlib,json,os,pathlib,platform,shutil,subprocess,sys,tarfile,z
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from dev import host_target,npm_command
+from runtime_checks import check_source_environment
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--components',required=True,help='native component directory with bin/, share/sftpgo/templates/ and licenses/');p.add_argument('--output',default='release/artifacts/native');a=p.parse_args()
 target=host_target();assert target in ('darwin-arm64','windows-amd64')
+go=check_source_environment(ROOT,media=True)
+build_env={**os.environ,'GOTOOLCHAIN':'local'}
 source=pathlib.Path(a.components).resolve();suffix='.exe' if target.startswith('windows') else '';lock=json.loads((ROOT/'release/storage-components.lock.json').read_text())
 for name,version,args in [('sftpgo','2.7.6',['--version']),('node','22.23.1',['--version']),('ffmpeg','9.0.2',['-version']),('ffprobe','9.0.2',['-version']),('heif-thumbnailer','1.23.6',['-v']),('caddy','2.11.4',['version']),('frpc','0.71.0',['--version'])]:
  binary=source/'bin'/(name+suffix)
@@ -16,7 +19,7 @@ subprocess.run([*npm_command(),'--prefix',str(ROOT/'web'),'ci'],check=True);subp
 out=(ROOT/a.output).resolve();out.mkdir(parents=True,exist_ok=True);stage=out/('yandu-0.2.0-'+target)
 if stage.exists():shutil.rmtree(stage)
 shutil.copytree(source,stage)
-subprocess.run(['go','build','-trimpath','-o',str(stage/('yandu'+suffix)),'./cmd/yandu'],cwd=ROOT,check=True)
+subprocess.run([go,'build','-trimpath','-o',str(stage/('yandu'+suffix)),'./cmd/yandu'],cwd=ROOT,check=True,env=build_env)
 shutil.copytree(ROOT/'media',stage/'media',ignore=shutil.ignore_patterns('node_modules'))
 # Native install on each builder fetches that platform's Sharp and ExifTool payloads from the committed npm integrity lock.
 subprocess.run([*npm_command(),'--prefix',str(stage/'media'),'ci','--omit=dev'],check=True)
@@ -31,7 +34,7 @@ collect_licenses(stage/'media/node_modules','media')
 for package in ('react','react-dom','scheduler','lucide-react','tus-js-client'):collect_licenses(ROOT/'web/node_modules'/package,'ui-'+package)
 for directory in (ROOT,ROOT/'.local/upstream/sftpgo-2.7.6'):
  if not (directory/'go.mod').exists():continue
- modules=subprocess.check_output(['go','list','-m','-json','all'],cwd=directory,text=True);decoder=json.JSONDecoder();position=0
+ modules=subprocess.check_output([go,'list','-m','-json','all'],cwd=directory,text=True,env=build_env);decoder=json.JSONDecoder();position=0
  while position<len(modules):
   while position<len(modules) and modules[position].isspace():position+=1
   if position>=len(modules):break

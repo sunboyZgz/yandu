@@ -19,9 +19,21 @@ spec.loader.exec_module(dev)
 
 class LauncherTests(unittest.TestCase):
     def setUp(self):
+        environment = patch.object(dev, 'check_source_environment', return_value='go')
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temporary = tempfile.TemporaryDirectory(prefix="yandu source & spaces ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
+
+    def test_failed_runtime_check_stops_before_state_build_or_process(self):
+        with patch.object(dev, 'require_native'), patch.object(dev, 'check_source_environment', side_effect=RuntimeError('Go detection failed')), \
+             patch.object(dev, 'prepare_state') as state, patch.object(dev, 'build') as build, patch.object(dev.subprocess, 'Popen') as popen:
+            with self.assertRaisesRegex(RuntimeError, 'detection failed'):
+                dev.run_agent(self.root, self.root / 'bin', self.root / 'state', 'windows-amd64', False, 1)
+        for operation in (state, build, popen):
+            operation.assert_not_called()
+        self.assertFalse((self.root / 'state').exists())
 
     def test_existing_matching_npm_dependencies_are_reused(self):
         directory=self.root/'web';(directory/'node_modules').mkdir(parents=True)
@@ -87,7 +99,7 @@ class LauncherTests(unittest.TestCase):
         entry.parent.mkdir(parents=True)
         for path in (npm, node, entry):
             path.write_text("fixture")
-        with patch.object(dev.sys, "platform", "win32"), patch.object(dev, "tool", side_effect=lambda name: str(npm if name == "npm" else node)):
+        with patch.object(dev, 'check_node_npm', return_value=[str(node), str(entry)]):
             command = dev.npm_command("--prefix", str(self.root), "ci")
         self.assertEqual(command, [str(node), str(entry), "--prefix", str(self.root), "ci"])
         with patch.object(dev.subprocess, "run") as run:

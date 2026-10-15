@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 YANDU_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-MODE=existing-nginx SITE=main DOMAIN= CONFIG= UPSTREAM= ALLOW= DEVICE=owner SERVER= DRY=0
+MODE=existing-nginx SITE=main DOMAIN= CONFIG= UPSTREAM= ALLOW= DEVICE=owner SERVER= DRY=0 YANDU_ALLOW_SYSTEM=0
 while (($#)); do
  case "$1" in
-  --mode) MODE=$2; shift 2;; --site-id) SITE=$2;shift 2;; --domain) DOMAIN=$2;shift 2;; --server-config) CONFIG=$2;shift 2;; --app-upstream) UPSTREAM=$2;shift 2;; --allow) ALLOW=$2;shift 2;; --device) DEVICE=$2;shift 2;; --server) SERVER=$2;shift 2;; --dry-run) DRY=1;shift;; *) echo "未知参数：$1" >&2;exit 1;;
+  --mode) MODE=$2; shift 2;; --site-id) SITE=$2;shift 2;; --domain) DOMAIN=$2;shift 2;; --server-config) CONFIG=$2;shift 2;; --app-upstream) UPSTREAM=$2;shift 2;; --allow) ALLOW=$2;shift 2;; --device) DEVICE=$2;shift 2;; --server) SERVER=$2;shift 2;; --dry-run) DRY=1;shift;; --allow-system-install) YANDU_ALLOW_SYSTEM=1;shift;; *) echo "未知参数：$1" >&2;exit 1;;
  esac
 done
 if [[ $MODE == storage-only ]];then
  YANDU_STORAGE_ARGS=(--server "$SERVER" --device "$DEVICE")
  [[ $DRY == 1 ]] && YANDU_STORAGE_ARGS+=(--dry-run)
+ [[ $YANDU_ALLOW_SYSTEM == 0 ]] || YANDU_STORAGE_ARGS+=(--allow-system-install)
  exec bash "$YANDU_SOURCE/install-cloud-storage.sh" "${YANDU_STORAGE_ARGS[@]}"
 fi
 [[ $EUID == 0 ]] || { echo "请使用 sudo 运行安装器" >&2;exit 1; }
@@ -17,7 +18,10 @@ fi
 [[ $MODE == existing-nginx || $MODE == standalone ]] || { echo "模式仅支持 existing-nginx 或 standalone" >&2;exit 1; }
 [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo "首版云端安装器支持 Linux x64" >&2;exit 1; }
 . /etc/os-release
-[[ $ID == ubuntu && $VERSION_ID == 24.04 ]] || { echo "自动安装基线为 Ubuntu 24.04；其他系统请按部署文档手动接入" >&2;exit 1; }
+if [[ ${ID:-} != ubuntu || ! ${VERSION_ID:-} =~ ^[0-9]{2}\.[0-9]{2}$ ]] || (( 10#${VERSION_ID/./} < 2404 ));then echo '自动安装需要 Ubuntu 24.04+ x64' >&2;exit 1;fi
+if ! YANDU_SYSTEMD_INFO=$(systemctl show --property=Version --value 2>&1) || [[ -z $YANDU_SYSTEMD_INFO ]];then printf 'systemd 管理器不可用，未修改系统：%s\n' "$YANDU_SYSTEMD_INFO" >&2;exit 1;fi
+command -v python3 >/dev/null || { echo '网站接入脚本需要已有 Python 3.10+；请先按环境准备指南检查或显式安装。' >&2;exit 1; }
+python3 -I -c 'import sys,struct; print(sys.executable,sys.version.split()[0],struct.calcsize("P")*8); sys.exit(0 if sys.version_info >= (3,10) and struct.calcsize("P")==8 else 1)' || { echo 'Python 检测失败或不满足 3.10+ 64 位；未修改系统。' >&2;exit 1; }
 if [[ $MODE == existing-nginx ]]; then
  [[ -f $CONFIG && -x /usr/sbin/nginx ]] || { echo "需要宿主机 Nginx 和 --server-config" >&2;exit 1; }
  python3 "$YANDU_SOURCE/nginx-integrate.py" --config "$CONFIG" --domain "$DOMAIN" --site-id "$SITE" --dry-run
@@ -30,6 +34,7 @@ if [[ -e /usr/local/bin/yandu || -L /usr/local/bin/yandu ]];then
  [[ -L /usr/local/bin/yandu && $(readlink /usr/local/bin/yandu) == /usr/local/lib/yandu/yandu-cloud ]] || { echo '已有不属于云端 Yandu 的 /usr/local/bin/yandu，停止安装';exit 1; }
 fi
 [[ -f $YANDU_SOURCE/yandu-cloud && -f $YANDU_SOURCE/bin/frps ]] || { echo "请使用完整 Linux 发布包，缺少 yandu-cloud 或 bin/frps" >&2;exit 1; }
+"$YANDU_SOURCE/yandu-cloud" tools prepare --check --role cloud --config "$YANDU_SOURCE/.yandu-preflight.json" --component-root "$YANDU_SOURCE" --tool "frps=$YANDU_SOURCE/bin/frps"
 command -v docker >/dev/null && echo "提示：本安装器只修改宿主机 Nginx，不操作容器或面板。"
 # Refuse to reuse an installation under a different identity or site.
 if [[ -f /etc/yandu/registry.json ]]; then
@@ -52,7 +57,12 @@ if [[ $MODE == standalone ]];then
  command -v nginx >/dev/null || YANDU_MISSING_SYSTEM+=(nginx)
  command -v certbot >/dev/null || YANDU_MISSING_SYSTEM+=(certbot)
 fi
-if ((${#YANDU_MISSING_SYSTEM[@]}));then apt-get update;apt-get install -y "${YANDU_MISSING_SYSTEM[@]}";fi
+if ((${#YANDU_MISSING_SYSTEM[@]}));then
+ [[ $YANDU_ALLOW_SYSTEM == 1 ]] || { printf '缺少系统软件包：%s；默认不调用 apt，请显式加 --allow-system-install。\n' "${YANDU_MISSING_SYSTEM[*]}" >&2;exit 1; }
+ printf '已允许系统安装：apt 将补齐 %s 及所需系统依赖。\n' "${YANDU_MISSING_SYSTEM[*]}"
+ apt-get update;apt-get install -y --no-install-recommends "${YANDU_MISSING_SYSTEM[@]}"
+fi
+echo '安装影响：写入 /etc/yandu、/usr/local/lib/yandu、yandu 命令链接，创建系统身份和 systemd 服务；网站模式还会修改指定 Nginx 站点及 SSH 配置。'
 install -d -m 0700 /etc/yandu /etc/yandu/tls /etc/yandu/backups /etc/yandu/nginx/generations
 install -d -m 0755 /usr/local/lib/yandu
 if [[ -f /usr/local/lib/yandu/yandu-cloud ]];then cp /usr/local/lib/yandu/yandu-cloud "/etc/yandu/backups/yandu-cloud.$(date +%s)";fi

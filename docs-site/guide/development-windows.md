@@ -19,9 +19,9 @@ description: Windows 11 x64 的源码启动、端口、NTFS 测试目录和重�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1
 ```
 
-默认自动准备文件功能所需的 Go 1.26.2+、Python 3.10+、Node/npm、Caddy、frpc、SFTPGo 及模板，并构建客户端。已有满足最低版本的运行时会复用；缺少系统工具时使用 WinGet 安装。若本次安装了系统工具，完成后重新打开 PowerShell，并按末尾 `Next:` 命令启动。
+默认检查 Go 1.26.2+、Python 3.10+，优先复用已激活的 Conda 和满足最低版本的现有运行时；随后准备项目私有 Node/npm、Caddy、frpc、SFTPGo 及模板，并构建客户端。默认不调用系统安装器；缺少运行时会显示原因并停止，可用 `-PythonExe` 指定已有解释器。
 
-需要 HEIC/视频时，准备命令加 `-Media`，会检查 Python 3.12+，补齐 Visual Studio C++、CMake、Git、7-Zip 并准备媒体组件。准备过程、只检查与自定义目录见[环境准备](./environment.md#windows-本机-一键准备)，工具复用规则见[依赖检测](./dependency-tools.md)。平台验证范围见[记录](/reference/storage-verification)。
+需要 HEIC/视频时加 `-Media`，会检查 Python 3.12+ 并准备媒体组件。只有显式加 `-AllowSystemInstall`，才允许安装缺少的 Python/Go 和媒体构建工具。准备完成后按末尾 `Next:` 命令启动；如安装了系统工具，先重新打开 PowerShell。Conda 指定方法、只检查与自定义目录见[环境准备](./environment.md#windows-本机-一键准备)，工具复用规则见[依赖检测](./dependency-tools.md)。平台验证范围见[记录](/reference/storage-verification)。
 
 ## 2. 启动
 

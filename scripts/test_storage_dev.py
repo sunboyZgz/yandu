@@ -23,6 +23,7 @@ class StoragePreparationTests(unittest.TestCase):
                     args.append("--no-media")
                 with patch.object(storage, "ROOT", root), patch.object(sys, "argv", args), \
                      patch.object(storage, "host_target", return_value="windows-amd64"), \
+                     patch.object(storage, "check_source_environment"), \
                      patch.object(storage, "prepare_state") as state, patch.object(storage, "build") as build, \
                      patch.object(storage, "ensure_ports_free") as ports, patch.object(storage.socket, "socket") as socket, \
                      patch.object(storage, "prepare_backend") as backend, patch.object(storage, "run_agent") as agent, \

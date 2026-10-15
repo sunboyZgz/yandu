@@ -19,13 +19,13 @@
 
 ## 1. 安装云端服务
 
-**安装前确认：服务器是 Ubuntu 24.04 或更新版本的 x64 系统，带 systemd 和 apt。** 源码安装自动补齐所需环境；想提前准备或只检查依赖，见[环境准备与一键安装](ENVIRONMENT.md)。允许安装的范围与实际部署验收状态见[验证记录](STORAGE_VERIFICATION.md)。
+**安装前确认：服务器是 Ubuntu 24.04 或更新版本的 x64 系统，带 systemd 和 apt。** 源码安装先检查复用环境；缺少系统依赖时，只有显式加 `--allow-system-install` 才允许补齐。提前检查与系统写入范围见[环境准备](ENVIRONMENT.md)，实际部署验收状态见[验证记录](STORAGE_VERIFICATION.md)。
 
 选择一种安装来源，在对应目录执行下方同一条命令：
 
 | 安装来源 | 执行目录 | 前提与准备过程 |
 | --- | --- | --- |
-| **源码仓库** | 仓库根目录 | 保持网络可用；自动补齐 Go、Python 和系统依赖，再编译云端程序、准备 frps 并安装服务 |
+| **源码仓库** | 仓库根目录 | 保持网络可用；检查 Go/Python，编译云端程序并准备 frps；系统依赖安装需显式允许 |
 | Linux 云端发布包 | 解压后的包目录 | 已包含 `yandu-cloud` 和 `bin/frps`，无需安装 Go、Python |
 
 ```bash
@@ -33,6 +33,8 @@ sudo bash ./install-cloud.sh --mode storage-only --server 203.0.113.10 --device 
 ```
 
 源码方式也兼容 `sudo bash ./scripts/install-cloud.sh ...`。云端源码安装只准备云端组件，不需要 Node.js、npm 或构建前端；准备失败会停止并显示原因。加上 `--dry-run` 可只预览，不编译、下载或安装。
+
+新服务器需要一次补齐环境并安装时，在上面的安装命令末尾加 `--allow-system-install`。安装会创建 Yandu 系统身份、systemd 服务、`/etc/yandu`、`/usr/local/lib/yandu` 及命令链接；该开关额外允许 apt 和专用 Go 工具目录写入。
 
 将示例 IP 换成真实服务器公网 IP。`--device owner` 为将来接入的本机设备指定 ID，可先使用示例值 `owner`；它不是本机 IP 或主机名，也不要求提前启动本机服务。安装器会把这个 ID 和连接材料写入连接包，稍后由本机导入。
 

@@ -5,6 +5,7 @@ import argparse, base64, json, os, pathlib, secrets, shutil, socket, subprocess,
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from dev import host_target, prepare_state, stop_child, ensure_ports_free, run_agent, build
+from runtime_checks import check_source_environment
 
 def http(url, method='GET', body=None, token=None, password=None):
  headers={'Content-Type':'application/json'}
@@ -52,7 +53,7 @@ def main():
  parser.add_argument('--state-dir',default='.yandu-storage-dev');parser.add_argument('--sftpgo',help='Explicit SFTPGo path; invalid explicit paths fail without substitution')
  parser.add_argument('--bin-dir',default='.local/bin');parser.add_argument('--no-media',action='store_true');parser.add_argument('--no-open',action='store_true')
  parser.add_argument('--prepare-only',action='store_true',help='Prepare dependencies and build the Agent without starting services')
- args=parser.parse_args();host_target()
+ args=parser.parse_args();host_target();check_source_environment(ROOT,media=not args.no_media)
  if not args.prepare_only:
   ensure_ports_free()
   with socket.socket() as probe: probe.bind(('127.0.0.1',18771))

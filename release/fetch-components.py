@@ -2,8 +2,9 @@
 """Download pinned upstream release assets and verify committed SHA-256 digests."""
 import concurrent.futures, hashlib, json, os, pathlib, shutil, tarfile, urllib.request, zipfile
 BASE=pathlib.Path(__file__).resolve().parent
-lock=json.loads((BASE/'dependencies.lock.json').read_text());cache=BASE/'artifacts/deps';cache.mkdir(parents=True,exist_ok=True)
+lock=json.loads((BASE/'dependencies.lock.json').read_text());cache=BASE/'artifacts/deps'
 def fetch(item):
+ cache.mkdir(parents=True,exist_ok=True)
  name,asset=item;file=cache/name
  if not file.exists():
   req=urllib.request.Request(asset['url'],headers={'User-Agent':'Yandu/0.1.0'})

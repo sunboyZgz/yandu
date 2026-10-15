@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -14,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from runtime_checks import require_host
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,25 +39,41 @@ def minimum_go(root: Path = ROOT) -> str:
 
 
 def probe_go(path: str, minimum: str) -> str | None:
+    if not Path(path).exists():
+        return None
     try:
         result = subprocess.run(
             [path, "version"], cwd="/", env={**os.environ, "GOTOOLCHAIN": "local"},
             text=True, capture_output=True, timeout=15, check=True,
         )
-        match = re.fullmatch(r"go version go(\d+\.\d+(?:\.\d+)?) linux/amd64\s*", result.stdout)
-        if match and version_tuple(match[1]) >= version_tuple(minimum):
+        match = re.fullmatch(r"go version go(\d+\.\d+(?:\.\d+)?(?:beta\d+|rc\d+)?) (\S+)\s*", result.stdout)
+        if not match:
+            raise RuntimeError(f"Go 检测输出无法解析：{path}：{result.stdout.strip()}")
+        print(f"Go {match[1]} ({match[2]})：{path}", file=sys.stderr)
+        if re.fullmatch(r'\d+\.\d+(?:\.\d+)?', match[1]) and match[2] == 'linux/amd64' and version_tuple(match[1]) >= version_tuple(minimum):
             return match[1]
-    except (OSError, subprocess.SubprocessError):
-        pass
+        print(f"不复用此 Go：要求稳定版 {minimum}+ linux/amd64；保留现有程序。", file=sys.stderr)
+    except (OSError, subprocess.SubprocessError) as error:
+        detail = getattr(error, 'stderr', '') or getattr(error, 'stdout', '') or ''
+        raise RuntimeError(f"Go 检测执行失败：{path}：{error} {detail}") from error
     return None
 
 
 def find_go(minimum: str, prefix: Path = PREFIX) -> tuple[str, str] | None:
     candidates = [shutil.which("go"), "/usr/local/go/bin/go", str(prefix / "go/bin/go")]
+    candidates[1:1] = [shutil.which('go', path=directory) for directory in os.get_exec_path() if directory and directory != '.']
+    errors = []
     for path in dict.fromkeys(candidate for candidate in candidates if candidate):
-        version = probe_go(path, minimum)
+        try:
+            version = probe_go(path, minimum)
+        except RuntimeError as error:
+            print(str(error), file=sys.stderr)
+            errors.append(str(error))
+            continue
         if version:
             return path, version
+    if errors:
+        raise RuntimeError('现有 Go 检测失败，不按缺失处理，也不下载安装替代程序。' + '; '.join(errors))
     return None
 
 
@@ -101,12 +119,12 @@ def extract_go(archive: Path, destination: Path) -> None:
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
 
 
-def ensure_go(minimum: str, prefix: Path = PREFIX, check: bool = False) -> tuple[str, str]:
+def ensure_go(minimum: str, prefix: Path = PREFIX, check: bool = False, allow_system_install: bool = False) -> tuple[str, str]:
     existing = find_go(minimum, prefix)
     if existing:
         return existing
-    if check:
-        raise RuntimeError(f"未找到 Go {minimum}+；运行 sudo bash ./setup-cloud-env.sh 补齐。")
+    if check or not allow_system_install:
+        raise RuntimeError(f"未找到 Go {minimum}+；默认不写入系统目录。可选择已有工具，或运行 sudo bash ./setup-cloud-env.sh --allow-system-install 补齐。")
     version = ".".join(map(str, version_tuple(minimum)))
     target = prefix / ("go-" + version)
     if target.exists() or target.is_symlink():
@@ -142,10 +160,25 @@ def ensure_go(minimum: str, prefix: Path = PREFIX, check: bool = False) -> tuple
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--allow-system-install", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.allow_system_install and (args.check or args.dry_run):
+            raise RuntimeError('--check / --dry-run 不能与 --allow-system-install 同时使用。')
+        if require_host() != 'linux-amd64':
+            raise RuntimeError('云端环境准备需要 Ubuntu x64。')
+        release = platform.freedesktop_os_release()
+        if release.get('ID') != 'ubuntu' or not re.fullmatch(r'\d{2}\.\d{2}', release.get('VERSION_ID', '')) or tuple(map(int, release['VERSION_ID'].split('.'))) < (24, 4):
+            raise RuntimeError('云端环境准备需要 Ubuntu 24.04+，未修改系统。')
+        if args.allow_system_install and os.geteuid() != 0:
+            raise RuntimeError('写入系统工具目录需要 root 和显式 --allow-system-install。')
         minimum = minimum_go()
-        path, version = ensure_go(minimum, check=args.check)
+        if args.dry_run:
+            existing = find_go(minimum)
+            print(f'Go：复用 {existing[0]} ({existing[1]})' if existing else f'Go：需要 {minimum}+；显式允许后写入 {PREFIX}，保留系统 Go 和 PATH。')
+            return 0
+        path, version = ensure_go(minimum, check=args.check, allow_system_install=args.allow_system_install)
         print(f"Python {sys.version.split()[0]}：{sys.executable}")
         print(f"Go {version}：{path}")
         print("Ubuntu 云端源码安装环境已就绪。")

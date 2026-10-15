@@ -2,9 +2,11 @@
 
 云端需要 frps；本机需要 SFTPGo、Caddy、frpc，启用媒体时增加 Node、FFmpeg、FFprobe 和 HEIC 解码器。
 
-首次部署先看[环境准备与一键安装](ENVIRONMENT.md)。Ubuntu 云端源码安装自动准备所需环境，也可在仓库根目录单独执行 `sudo bash ./setup-cloud-env.sh`。
+首次部署先看[环境准备与一键安装](ENVIRONMENT.md)。Ubuntu 云端源码安装先检查复用环境；需要 apt 或专用系统 Go 时，显式加 `--allow-system-install`。也可单独执行 `bash ./setup-cloud-env.sh --check`。
 
-Windows 源码在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，默认准备文件功能；加 `-Media` 准备 HEIC/视频及其构建工具，加 `-Check` 只检查。该入口准备依赖并构建，不启动服务。
+Windows 源码在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，默认检查复用运行时并准备项目私有文件组件；加 `-Media` 准备 HEIC/视频，加 `-Check` 只检查。优先检测已激活的 Conda，可用 `-PythonExe` 固定解释器。只有显式加 `-AllowSystemInstall` 才允许安装 Python/Go 或媒体构建工具。该入口准备依赖并构建，不启动服务。
+
+`-AllowSystemInstall` 只控制系统级安装；Node/npm、Caddy、frpc、SFTPGo 同样先检查，缺少合格候选时默认补齐私有副本，不需要这个参数。npm 项目依赖安装在项目目录。所有下载和构建都要跳过时用 `-Check`；各依赖的具体行为见[环境准备](ENVIRONMENT.md#windows-本机-一键准备)。
 
 ## 运行时最低版本
 
@@ -18,7 +20,7 @@ Windows 源码在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPoli
 
 云端 storage-only 可直接在源码仓库根目录运行 `sudo bash ./install-cloud.sh ...`，仅使用 Go/Python 准备云端程序和 frps，不构建前端或安装 Node/npm。
 
-云端源码准备优先复用 PATH 或 `/usr/local/go/bin/go` 中满足最低版本的 Go；缺少时在 `/usr/local/lib/yandu-env/` 安装经官方 SHA256 校验的副本，后续安装自动使用该路径。
+云端源码准备优先复用 PATH 或 `/usr/local/go/bin/go` 中满足最低版本的 Go；仅在明确允许系统安装后，才在 `/usr/local/lib/yandu-env/` 准备经官方 SHA256 校验的副本。检测执行失败先报错，不按缺失处理。
 
 `storage-components.lock.json` 中 Node 的 `minimumVersion` 控制已有运行时的准入，`version` 与 SHA256 控制缺失时下载的固定副本。发布包和 CI 使用具体版本以复现构建，不限制使用者安装更高版本的运行时。服务组件如 frp、SFTPGo 和媒体原生工具仍按组件契约验证。
 
@@ -41,7 +43,7 @@ Windows 源码在仓库根目录运行 `powershell.exe -NoProfile -ExecutionPoli
 | 云端 | `/etc/yandu/tools.json` | `/usr/local/lib/yandu/frps` / `/etc/yandu/tools/` |
 | 存储源码 | `.yandu-storage-dev/tools.json` | 仓库 `.local` / 状态目录 `tools/` |
 
-Yandu 不修改系统 PATH 或安装全局 npm 包。源码构建 Node/npm 另存 `build-tools.json`，模块安装在项目 `node_modules`；锁文件匹配且可加载时复用，否则运行 `npm ci`。
+私有组件准备不修改持久 PATH 或安装全局 npm 包。源码构建 Node/npm 另存 `build-tools.json`，模块安装在项目 `node_modules`；锁文件匹配且可加载时复用，否则运行 `npm ci`。Go/npm 可以写入用户缓存。显式启用的系统安装器可能更新系统依赖与 PATH；正式服务安装也有明确系统写入，见[影响表](ENVIRONMENT.md#检查范围与系统影响)。
 
 `tools.json` 不存项目密钥，也不设置端口；监听地址见[端口配置](PORTS.md)。
 
@@ -58,10 +60,11 @@ sudo yandu tools prepare --role cloud
 
 ```bash
 .local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" tools list
+.local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" tools prepare --check --component-root "$PWD" --role local
 .local/bin/yandu --state-dir "$PWD/.yandu-storage-dev" tools prepare --component-root "$PWD" --role local
 ```
 
-Windows 使用 `.exe`。`list` 只展示记录，可加 `--json`；`prepare` 重新验证。只调试文件时加 `--no-media`。更换路径前停实例，准备后重启。
+Windows 使用 `.exe`。`list` 只展示记录，可加 `--json`；`prepare` 重新验证；加 `--check` 则不下载、不构建、不写配置或锁文件，并检查媒体模块实际加载。只调试文件时加 `--no-media`。更换路径前停实例，准备后重启。
 
 ## 自定义路径
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 YANDU_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SERVER= DEVICE=owner DRY=0
-while (($#));do case "$1" in --server) SERVER=$2;shift 2;; --device) DEVICE=$2;shift 2;; --dry-run) DRY=1;shift;; *) echo "未知参数 $1" >&2;exit 1;; esac;done
+SERVER= DEVICE=owner DRY=0 YANDU_ALLOW_SYSTEM=0
+while (($#));do case "$1" in --server) SERVER=$2;shift 2;; --device) DEVICE=$2;shift 2;; --dry-run) DRY=1;shift;; --allow-system-install) YANDU_ALLOW_SYSTEM=1;shift;; *) echo "未知参数 $1" >&2;exit 1;; esac;done
 [[ $EUID == 0 && $(uname -s) == Linux && $(uname -m) == x86_64 && $SERVER =~ ^[a-zA-Z0-9.-]+$ && $DEVICE =~ ^[a-z][a-z0-9-]{0,47}$ ]] || { echo "需要 Ubuntu x64 root、--server IP或DNS，以及有效设备 ID" >&2;exit 1; }
 . /etc/os-release
 # Ubuntu release IDs use YY.MM; compare numerically instead of rejecting newer releases.
@@ -18,7 +18,11 @@ if ((${#YANDU_MISSING_COMMANDS[@]}));then
  printf '缺少云端安装所需命令：%s。请准备带 systemd、用户管理和 apt 的 Ubuntu 服务器环境。\n' "${YANDU_MISSING_COMMANDS[*]}" >&2
  exit 1
 fi
-[[ $DRY == 1 ]] && { echo "storage-only：TLS frps :7000 → 回环 :19090 → 私有网关 :19091；无需 Nginx。";exit 0; }
+if ! YANDU_SYSTEMD_INFO=$(systemctl show --property=Version --value 2>&1) || [[ -z $YANDU_SYSTEMD_INFO ]];then
+ printf 'systemd 管理器不可用，不能安装云端服务；未修改系统：%s\n' "$YANDU_SYSTEMD_INFO" >&2;exit 1
+fi
+echo '安装影响：/etc/yandu、/usr/local/lib/yandu、/usr/local/bin/yandu 链接、yandu-frps/yandu-gateway 身份与 systemd 服务。系统依赖安装需显式 --allow-system-install。'
+[[ $DRY == 1 ]] && { echo "storage-only：TLS frps :7000 → 回环 :19090 → 私有网关 :19091；无需 Nginx。这里只预览安装流程，未执行工具兼容性探针；完整环境检查用 setup-cloud-env.sh --check。";exit 0; }
 show_pair_command() {
  printf '  sudo /usr/local/lib/yandu/yandu-cloud pair --scope storage-only --dir /etc/yandu --device %q --server %q --out %q\n' "$DEVICE" "$SERVER" "/etc/yandu/$DEVICE.yandu-profile" >&2
 }
@@ -37,13 +41,15 @@ for account in yandu-frps yandu-gateway;do ! id "$account" >/dev/null 2>&1 || { 
 if [[ ! -x $YANDU_SOURCE/yandu-cloud || ! -x $YANDU_SOURCE/bin/frps ]];then
  if [[ -f $YANDU_SOURCE/../go.mod && -d $YANDU_SOURCE/../cmd/yandu-cloud && -f $YANDU_SOURCE/prepare-cloud-install.py ]];then
   echo '检测到源码仓库，先准备 Ubuntu 云端环境…'
-  bash "$YANDU_SOURCE/setup-cloud-env.sh"
+  YANDU_ENV_ARGS=()
+  [[ $YANDU_ALLOW_SYSTEM == 0 ]] || YANDU_ENV_ARGS+=(--allow-system-install)
+  bash "$YANDU_SOURCE/setup-cloud-env.sh" "${YANDU_ENV_ARGS[@]}"
   YANDU_PYTHON=
   for YANDU_CANDIDATE in "$(command -v python3 || true)" /usr/bin/python3 "$(command -v python || true)";do
-   if [[ -n $YANDU_CANDIDATE && -x $YANDU_CANDIDATE ]] && "$YANDU_CANDIDATE" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1;then YANDU_PYTHON=$YANDU_CANDIDATE;break;fi
+   if [[ -n $YANDU_CANDIDATE && -x $YANDU_CANDIDATE ]] && "$YANDU_CANDIDATE" -I -c 'import sys,struct; sys.exit(0 if sys.version_info >= (3,10) and struct.calcsize("P")==8 else 1)';then YANDU_PYTHON=$YANDU_CANDIDATE;break;fi
   done
   [[ -n $YANDU_PYTHON ]] || { echo '未找到 Python 3.10+，环境准备未完成。' >&2;exit 1; }
-  exec "$YANDU_PYTHON" "$YANDU_SOURCE/prepare-cloud-install.py" --server "$SERVER" --device "$DEVICE"
+  exec "$YANDU_PYTHON" "$YANDU_SOURCE/prepare-cloud-install.py" --server "$SERVER" --device "$DEVICE" "${YANDU_ENV_ARGS[@]}"
  fi
 fi
 [[ -x $YANDU_SOURCE/yandu-cloud && -x $YANDU_SOURCE/bin/frps ]] || {
@@ -51,7 +57,12 @@ fi
  echo '请使用完整 Linux 云端发布包，或在完整源码仓库根目录运行 ./install-cloud.sh 自动准备组件。' >&2
  exit 1
 }
-if ! command -v setfacl >/dev/null;then apt-get update;apt-get install -y acl;fi
+"$YANDU_SOURCE/yandu-cloud" tools prepare --check --role cloud --config "$YANDU_SOURCE/.yandu-preflight.json" --component-root "$YANDU_SOURCE" --tool "frps=$YANDU_SOURCE/bin/frps"
+if ! command -v setfacl >/dev/null;then
+ [[ $YANDU_ALLOW_SYSTEM == 1 ]] || { echo '缺少 setfacl (acl)；默认不调用 apt，请显式加 --allow-system-install。' >&2;exit 1; }
+ echo '已允许系统安装：apt 将补齐 acl 及其系统依赖。'
+ apt-get update;apt-get install -y --no-install-recommends acl
+fi
 install -d -m 0750 /etc/yandu /etc/yandu/tls
 install -d -m 0755 /usr/local/lib/yandu
 install -m 0755 "$YANDU_SOURCE/yandu-cloud" /usr/local/lib/yandu/yandu-cloud

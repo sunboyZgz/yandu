@@ -1,17 +1,20 @@
 #Requires -RunAsAdministrator
-param([string]$ProfilePath,[string]$InstallPath="$env:ProgramFiles\Yandu",[string]$StatePath="$env:ProgramData\Yandu",[switch]$SkipOpen)
+param([string]$ProfilePath,[string]$InstallPath="$env:ProgramFiles\Yandu",[string]$StatePath="$env:ProgramData\Yandu",[switch]$SkipOpen,[switch]$AddToPath)
 if(Test-Path "$PSScriptRoot\component-receipt.json"){
  & "$PSScriptRoot\install-storage-windows.ps1" -InstallPath $InstallPath -StatePath $StatePath -SkipOpen:$SkipOpen
  if($ProfilePath){& "$InstallPath\yandu.exe" --state-dir $StatePath connection import $ProfilePath}
  return
 }
 $ErrorActionPreference='Stop'
-if (-not [Environment]::Is64BitOperatingSystem) { throw '需要 Windows x64' }
+if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or -not [Environment]::Is64BitProcess -or [Environment]::OSVersion.Version.Build -lt 22000) { throw '需要 Windows 11+ x64 和 64 位 PowerShell；未修改系统' }
 $Source=$PSScriptRoot
 $PreexistingService=Get-Service -Name Yandu -ErrorAction SilentlyContinue
 if(($PreexistingService -or (Test-Path "$InstallPath\yandu.exe")) -and -not (Test-Path "$StatePath\installation.json")){throw '检测到同名服务或程序但缺少安装归属记录，拒绝覆盖'}
 if([IO.Path]::GetFullPath($InstallPath) -ne [IO.Path]::GetFullPath("$env:ProgramFiles\Yandu")){throw '首版仅安装到 Program Files\Yandu，避免覆盖素材或其他应用目录'}
 foreach($file in @('yandu.exe','bin\caddy.exe','bin\frpc.exe')) { if(-not (Test-Path (Join-Path $Source $file))) { throw "发布包缺少 $file" } }
+& "$Source\yandu.exe" tools prepare --check --role readonly --component-root $Source --config "$Source\.yandu-preflight.json" --tool "caddy=$Source\bin\caddy.exe" --tool "frpc=$Source\bin\frpc.exe"
+if($LASTEXITCODE -ne 0){throw '组件兼容性检查失败；未修改服务或安装目录'}
+Write-Host 'Installation changes: Yandu program/state directories, Windows service, ACLs and desktop shortcut. Persistent PATH changes require -AddToPath.'
 New-Item -ItemType Directory -Path $InstallPath,$StatePath -Force | Out-Null
 $User=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $OwnedPathAdded=$false
@@ -46,7 +49,7 @@ try {
  $Shortcut=$Shell.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\檐渡.lnk')
  $Shortcut.TargetPath="$InstallPath\yandu.exe";$Shortcut.Arguments='--state-dir "'+$StatePath+'" ui';$Shortcut.WorkingDirectory=$InstallPath;$Shortcut.Save()
  $MachinePath=[Environment]::GetEnvironmentVariable('Path','Machine')
- if(-not ($MachinePath.Split(';') -contains $InstallPath)){[Environment]::SetEnvironmentVariable('Path',($MachinePath.TrimEnd(';')+';'+$InstallPath),'Machine');$OwnedPathAdded=$true}
+ if($AddToPath -and -not ($MachinePath.Split(';') -contains $InstallPath)){[Environment]::SetEnvironmentVariable('Path',($MachinePath.TrimEnd(';')+';'+$InstallPath),'Machine');$OwnedPathAdded=$true}
  @{version='0.1.0';installPath=$InstallPath;statePath=$StatePath;userSid=$User;service='Yandu';pathEntryAdded=$OwnedPathAdded} | ConvertTo-Json | Set-Content "$StatePath\installation.json" -Encoding UTF8
  if(-not $SkipOpen){& "$InstallPath\yandu.exe" --state-dir $StatePath ui}
  Write-Host '檐渡已安装。关闭浏览器不会停止服务。资源目录需单独授权并授予 LocalService 读取权限。'

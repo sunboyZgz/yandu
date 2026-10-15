@@ -38,6 +38,16 @@ SFTPGo 缺失或启动失败时核对 2.7.6 原生程序与原始 `templates/ema
 
 如果尚未启动，在第一个终端运行 `python .\scripts\storage-dev.py --no-media` 并保持终端运行。`make ui` 仅构建前端；启动、媒体和自定义路径见[Windows 开发模式](./development-windows.md)。
 
+### 已有 Conda，环境准备仍提示安装 Python
+
+Python 3.10+ x64 满足文件模式，3.12+ x64 满足媒体模式。旧脚本的版本检测受 Windows PowerShell 原生命令引号处理影响，可能将检测失败误判为缺失。更新代码后重跑；新脚本优先检测已激活 Conda，显示实际版本与路径，默认不安装系统工具。也可固定解释器：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1 -Media -PythonExe "$env:CONDA_PREFIX\python.exe"
+```
+
+上例用于已激活的 Conda；否则替换为实际 Python 绝对路径。加 `-Check` 只检查，首次没有组件记录时会报告尚未准备；完整选项见[环境准备](./environment.md#windows-本机-一键准备)。
+
 ## 项目与受管目录
 
 | 现象 / 错误 | 检查 |

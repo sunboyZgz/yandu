@@ -40,10 +40,14 @@ func Command(args []string, defaultConfig, defaultRole string, out, errOut io.Wr
 	role := f.String("role", defaultRole, "local, cloud, readonly or build")
 	noMedia := f.Bool("no-media", false, "skip optional media tools")
 	jsonOutput := f.Bool("json", false, "JSON output")
+	checkOnly := f.Bool("check", false, "validate existing tools without downloading, building or writing configuration")
 	var overrides repeatedFlags
 	f.Var(&overrides, "tool", "explicit name=absolute-path (repeatable)")
 	if e = f.Parse(args); e != nil {
 		return e
+	}
+	if *checkOnly && action != "prepare" {
+		return fmt.Errorf("--check is only valid with tools prepare")
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -63,7 +67,7 @@ func Command(args []string, defaultConfig, defaultRole string, out, errOut io.Wr
 			}
 			explicit[n] = p
 		}
-		c, e := Prepare(ctx, Options{Role: *role, ConfigPath: *config, ComponentRoot: *root, NoMedia: *noMedia, Overrides: explicit, Progress: errOut})
+		c, e := Prepare(ctx, Options{Role: *role, ConfigPath: *config, ComponentRoot: *root, NoMedia: *noMedia, Overrides: explicit, Progress: errOut, NoInstall: *checkOnly, NoSave: *checkOnly, CheckMediaModules: *checkOnly})
 		if e != nil {
 			return e
 		}

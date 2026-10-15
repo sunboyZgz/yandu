@@ -9,7 +9,7 @@ sys.path.insert(0,str(ROOT/'release'))
 import importlib.util
 spec=importlib.util.spec_from_file_location('fetch_components',ROOT/'release/fetch-components.py');fetcher=importlib.util.module_from_spec(spec);spec.loader.exec_module(fetcher)
 LOCK=json.loads((ROOT/'release/storage-components.lock.json').read_text())
-CACHE=ROOT/'.local/native-cache';CACHE.mkdir(parents=True,exist_ok=True)
+CACHE=ROOT/'.local/native-cache'
 def run(args,**kwargs):return subprocess.run([str(v) for v in args],check=True,**kwargs)
 def fetch(asset):
  file=CACHE/asset['url'].rsplit('/',1)[-1]
@@ -77,8 +77,14 @@ def seal_macos(stage,prefixes):
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--only',choices=('all','ffmpeg','heif'),default='all');p.add_argument('--output',default='.local/native-components');p.add_argument('--heif-prefix',default='.local/heif-sealed');p.add_argument('--ffmpeg-prefix',default='.local/ffmpeg-9.0.2');a=p.parse_args()
 target=host_target()
 if target not in ('darwin-arm64','windows-amd64'):raise RuntimeError('Native Apple Silicon or Windows x64 builder required')
+from runtime_checks import check_source_environment, require_build_tools, require_windows_cpp
+GO=check_source_environment(ROOT,media=True)
+if target=='windows-amd64':
+ require_build_tools((('git','cmake') if a.only in ('all','heif') else ()) + (('7z',) if a.only in ('all','ffmpeg') else ()))
+ if a.only in ('all','heif'):require_windows_cpp()
 stage=(ROOT/a.output).resolve()
 if stage.exists():raise RuntimeError('Output exists; choose a new empty staging directory')
+CACHE.mkdir(parents=True,exist_ok=True)
 (stage/'bin').mkdir(parents=True);licenses=stage/'licenses';licenses.mkdir();sources=stage/'sources';sources.mkdir()
 if a.only=='all':
  for name,asset in component_assets(ROOT,target):
@@ -108,11 +114,11 @@ if target=='darwin-arm64':
    source=ROOT/'.local/upstream'/file
    if not source.exists():raise RuntimeError('Corresponding source required: '+file)
    shutil.copy2(source,sources/file)
-  module=LOCK['ffmpeg']['sourceModule'];info=json.loads(subprocess.check_output(['go','mod','download','-json',module['module']+'@'+module['moduleVersion']],text=True))
+  module=LOCK['ffmpeg']['sourceModule'];info=json.loads(subprocess.check_output([GO,'mod','download','-json',module['module']+'@'+module['moduleVersion']],text=True,env={**os.environ,'GOTOOLCHAIN':'local'}))
   if hashlib.sha256(pathlib.Path(info['Zip']).read_bytes()).hexdigest()!=module['zipSHA256']:raise RuntimeError('FFmpeg source mismatch')
   shutil.copy2(info['Zip'],sources/'ffmpeg-9.0.2.zip')
   for name,source in LOCK['nativeSources'].items():
-   info=json.loads(subprocess.check_output(['go','mod','download','-json',source['module']+'@'+source['moduleVersion']],text=True))
+   info=json.loads(subprocess.check_output([GO,'mod','download','-json',source['module']+'@'+source['moduleVersion']],text=True,env={**os.environ,'GOTOOLCHAIN':'local'}))
    if hashlib.sha256(pathlib.Path(info['Zip']).read_bytes()).hexdigest()!=source['zipSHA256']:raise RuntimeError('Native library source mismatch')
    shutil.copy2(info['Zip'],sources/(name+'-'+source['moduleVersion']+'.zip'))
 else:
@@ -142,5 +148,5 @@ else:
   copy_licenses(heifSource,licenses,'libheif');copy_licenses(manifest/'vcpkg_installed/x64-windows/share',licenses,'vcpkg')
   shutil.copy2(fetch(LOCK['libheif']),sources/'libheif-1.23.6.tar.gz')
 (sources/'README.md').write_text('Source inputs and exact binary hashes are in storage-components.lock.json. Windows FFmpeg is the checksum-locked Gyan upstream distribution; retain its upstream corresponding-source materials when redistributing. macOS FFmpeg and x264 source archives are included; build options are in the lock. Native libraries remain dynamically linked.\n')
-(stage/'build-inputs.json').write_text(json.dumps({'target':target,'lock':LOCK,'builder':{'go':subprocess.check_output(['go','version'],text=True).strip(),'cmake':subprocess.check_output(['cmake','--version'],text=True).splitlines()[0] if shutil.which('cmake') else 'not required for selected tools'}},indent=2))
+(stage/'build-inputs.json').write_text(json.dumps({'target':target,'lock':LOCK,'builder':{'go':subprocess.check_output([GO,'version'],text=True,env={**os.environ,'GOTOOLCHAIN':'local'}).strip(),'cmake':subprocess.check_output(['cmake','--version'],text=True).splitlines()[0] if shutil.which('cmake') else 'not required for selected tools'}},indent=2))
 print('Native components prepared:',stage)

@@ -24,15 +24,15 @@ https://example.com/blog/xxx/中文%20a.png     → D:/oss/blog/xxx/中文 a.png
 python3 scripts/storage-dev.py --no-media  # 文件存储；完整媒体启动时去掉 --no-media
 ```
 
-Windows 新克隆后先运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，自动准备文件功能的运行时、SFTPGo 等组件并构建；需要完整媒体时加 `-Media`。完成后按输出的 `Next:` 命令启动，详见[环境准备](docs/ENVIRONMENT.md)。
+Windows 新克隆后先运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-windows-env.ps1`，检查复用现有运行时，准备 SFTPGo 等项目私有组件并构建；需要完整媒体时加 `-Media`。默认不安装系统工具，只有显式加 `-AllowSystemInstall` 才允许补齐。完成后按输出的 `Next:` 命令启动，详见[环境准备](docs/ENVIRONMENT.md)。
 
 开发状态使用独立 `.yandu-storage-dev`，管理页 `127.0.0.1:18765`，存储 API `18770`，内部 SFTPGo `18771`。生成式服务端 SDK 在 `sdk/typescript`，业务会话代理示例在 `examples/storage-business`。完整客户端原生包使用 `release/build-native-storage.py`；传统 `release/build.py` 包不包含存储原生组件。
 
-一键入口先验证 PATH 中已有工具，再检查 `tools.json` 路径和私有候选，只补齐缺失依赖并记录绝对路径、版本及 SHA256。不会修改系统 PATH 或安装全局 npm 包；已有正确组件和匹配锁文件的 npm 依赖会复用。完整包保留离线候选，源码缺少原生组件时才需要相应构建工具。
+一键入口先验证 PATH 中已有工具，再检查 `tools.json` 路径和私有候选，只补齐缺失组件并记录绝对路径、版本及 SHA256。私有组件准备不修改持久 PATH 或安装全局 npm 包；系统安装需显式开关，可能更新系统依赖和 PATH。已有正确组件和匹配锁文件的 npm 依赖会复用。完整包保留离线候选，源码缺少原生组件时才需要相应构建工具。
 
 云端安装/升级提供 `sudo yandu list`、`sudo yandu disks`、`sudo yandu list --json`：通过独立只读监控凭证查看本机项目、容量及去重后的受管磁盘/APFS 容器。旧部署需更新两端程序和监控连接包，离线快照明确标注采样时间。步骤见[云端命令行与容量监控](docs-site/guide/cloud-monitoring.md)。
 
-云端也支持从源码仓库直接安装：根目录的 `install-cloud.sh` 会自动补齐 Go、Python 和系统依赖，再准备云端程序与 frps，无需 Node/npm 或预先打包。只准备环境可执行 `sudo bash ./setup-cloud-env.sh`，见[环境准备](docs/ENVIRONMENT.md)与[云端启动](docs/CLOUD_STARTUP.md)。
+云端也支持从源码仓库直接安装：根目录的 `install-cloud.sh` 检查复用 Go/Python，准备云端程序与 frps，无需 Node/npm 或预先打包；缺少系统依赖时需显式加 `--allow-system-install`。环境检查用 `bash ./setup-cloud-env.sh --check`，见[环境准备](docs/ENVIRONMENT.md)与[云端启动](docs/CLOUD_STARTUP.md)。
 
 项目级 MP4 压缩支持固定字节上限、上传时明确的超限策略、原件完整保留、精确任务查询和实测产物摘要；用法见[媒体指南](docs-site/guide/media.md)，实际结果与待验收项见[压缩验收记录](docs/MEDIA_ACCEPTANCE.md)。
 

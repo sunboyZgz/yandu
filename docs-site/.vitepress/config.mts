@@ -21,7 +21,7 @@ export default defineConfig({
       for (const token of state.tokens) for (const child of token.children ?? []) {
         if (child.type === 'link_open' && child.attrGet('href') === 'STORAGE_VERIFICATION.md') child.attrSet('href','/reference/storage-verification')
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('DEPENDENCY_TOOLS.md')) child.attrSet('href', child.attrGet('href')!.replace('DEPENDENCY_TOOLS.md','/guide/dependency-tools'))
-        if (child.type === 'link_open' && child.attrGet('href') === 'ENVIRONMENT.md') child.attrSet('href','/guide/environment')
+        if (child.type === 'link_open' && child.attrGet('href')?.startsWith('ENVIRONMENT.md')) child.attrSet('href', child.attrGet('href')!.replace('ENVIRONMENT.md','/guide/environment'))
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('PORTS.md')) child.attrSet('href', child.attrGet('href')!.replace('PORTS.md','/guide/ports'))
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('MEDIA_ACCEPTANCE.md')) child.attrSet('href', child.attrGet('href')!.replace('MEDIA_ACCEPTANCE.md','/reference/media-acceptance'))
         if (child.type === 'link_open' && child.attrGet('href')?.startsWith('CLOUD_STARTUP.md')) child.attrSet('href', child.attrGet('href')!.replace('CLOUD_STARTUP.md','/guide/cloud-startup'))

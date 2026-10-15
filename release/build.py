@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-import argparse,hashlib,json,os,pathlib,shutil,subprocess,tarfile,zipfile
-ROOT=pathlib.Path(__file__).resolve().parent.parent;OUT=ROOT/'release/artifacts';OUT.mkdir(parents=True,exist_ok=True)
+import argparse,hashlib,json,os,pathlib,shutil,subprocess,sys,tarfile,zipfile
+ROOT=pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0,str(ROOT/'scripts'))
+from runtime_checks import check_source_environment,check_node_npm
 parser=argparse.ArgumentParser(description='Build legacy client or Linux cloud packages using locked dependencies.')
 parser.add_argument('--target',choices=('all','windows','linux','darwin'),default='all')
 options=parser.parse_args()
-def run(args,**kwargs):subprocess.run(args,cwd=ROOT,check=True,**kwargs)
-run(['npm','--prefix','web','ci']);run(['npm','--prefix','web','run','build']);run(['go','test','./...']);run(['go','vet','./...']);run(['python3','release/fetch-components.py'])
+go=check_source_environment(ROOT);npm=check_node_npm()
+build_env={**os.environ,'GOTOOLCHAIN':'local'}
+OUT=ROOT/'release/artifacts';OUT.mkdir(parents=True,exist_ok=True)
+def run(args,**kwargs):
+ kwargs.setdefault('env',build_env)
+ subprocess.run(args,cwd=ROOT,check=True,**kwargs)
+run([*npm,'--prefix','web','ci']);run([*npm,'--prefix','web','run','build']);run([go,'test','./...']);run([go,'vet','./...']);run([sys.executable,'release/fetch-components.py'])
 lock=json.loads((ROOT/'release/dependencies.lock.json').read_text())
 # Preserve every transitive Go module license supplied by its publisher.
 license_dir=OUT/'licenses'
 if license_dir.exists():shutil.rmtree(license_dir)
 license_dir.mkdir()
-modules=subprocess.check_output(['go','list','-m','-json','all'],cwd=ROOT,text=True);decoder=json.JSONDecoder();pos=0
+modules=subprocess.check_output([go,'list','-m','-json','all'],cwd=ROOT,text=True,env=build_env);decoder=json.JSONDecoder();pos=0
 while pos<len(modules):
  while pos<len(modules) and modules[pos].isspace():pos+=1
  if pos>=len(modules):break
@@ -28,8 +35,8 @@ for system,arch,caddy_os,frp_os in [('windows','amd64','windows','windows'),('li
  name=f'yandu-0.2.0-{system}-{arch}';stage=OUT/name
  if stage.exists():shutil.rmtree(stage)
  (stage/'bin').mkdir(parents=True)
- env={**os.environ,'GOOS':system,'GOARCH':arch,'CGO_ENABLED':'0'};suffix='.exe' if system=='windows' else ''
- run(['go','build','-trimpath','-ldflags=-s -w','-o',str(stage/('yandu'+suffix)),'./cmd/yandu-cloud' if system=='linux' else './cmd/yandu'],env=env)
+ env={**build_env,'GOOS':system,'GOARCH':arch,'CGO_ENABLED':'0'};suffix='.exe' if system=='windows' else ''
+ run([go,'build','-trimpath','-ldflags=-s -w','-o',str(stage/('yandu'+suffix)),'./cmd/yandu-cloud' if system=='linux' else './cmd/yandu'],env=env)
  if system=='linux':shutil.copy2(stage/'yandu',stage/'yandu-cloud')
  for dep,osname,exe in [('caddy',caddy_os,'caddy'),('frp',frp_os,'frpc')]:
   if system=='linux' and dep=='caddy':continue

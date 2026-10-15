@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 [[ $EUID == 0 && $(uname -s) == Darwin && $(uname -m) == arm64 ]] || { echo '需要 macOS Apple Silicon 和 sudo';exit 1; }
+YANDU_OS_VERSION=$(sw_vers -productVersion)
+[[ ${YANDU_OS_VERSION%%.*} =~ ^[0-9]+$ ]] && (( ${YANDU_OS_VERSION%%.*} >= 14 )) || { echo "需要 macOS 14+，当前 $YANDU_OS_VERSION；未修改系统。" >&2;exit 1; }
 YANDU_SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 YANDU_INSTALL='/Library/Yandu'
 YANDU_STATE='/Library/Application Support/Yandu'
@@ -8,6 +10,10 @@ YANDU_OPERATOR=${SUDO_USER:-}
 [[ -n $YANDU_OPERATOR && $YANDU_OPERATOR != root ]] || { echo '请由需要管理服务的桌面账号通过 sudo 安装';exit 1; }
 for file in yandu bin/sftpgo bin/frpc bin/caddy bin/node bin/ffmpeg bin/ffprobe bin/heif-thumbnailer media/worker.mjs component-receipt.json;do [[ -f $YANDU_SOURCE/$file ]] || { echo "完整原生组件包缺少 $file";exit 1; };done
 "$YANDU_SOURCE/yandu" storage-components-verify --component-root "$YANDU_SOURCE"
+YANDU_COMPONENT_ARGS=()
+for YANDU_COMPONENT in caddy frpc sftpgo node ffmpeg ffprobe heif-thumbnailer;do YANDU_COMPONENT_ARGS+=(--tool "$YANDU_COMPONENT=$YANDU_SOURCE/bin/$YANDU_COMPONENT");done
+"$YANDU_SOURCE/yandu" tools prepare --check --role local --component-root "$YANDU_SOURCE" --config "$YANDU_SOURCE/.yandu-preflight.json" "${YANDU_COMPONENT_ARGS[@]}"
+echo '安装影响：写入 /Library/Yandu、Application Support/Yandu 和 LaunchDaemons，创建服务身份与管理组；不安装 Homebrew/Python/Go，不修改系统 PATH。'
 if [[ -e $YANDU_STATE && ! -f $YANDU_STATE/installation.json ]];then echo '目录已存在但没有安装记录，拒绝接管';exit 1;fi
 for service in core sftpgo;do launchctl bootout "system/com.yandu.$service" 2>/dev/null || true;done
 YANDU_UID=470
