@@ -15,6 +15,8 @@ sudo yandu list --json
 
 `list` 展示项目和磁盘汇总，`disks` 只展示磁盘表；两者的 `--json` 都返回完整快照。
 
+仅更新这些命令的显示时，在新版 `yandu-cloud` 所在目录执行 `sudo bash ./upgrade-cloud.sh --component cli`，不会重启网关或隧道。分组件更新、维护窗口和失败回退见[升级与恢复](./maintenance.md#升级云端组件)。
+
 ## yandu 与 yandu-cloud 的关系
 
 云端的两个名称对应同一个程序，支持相同命令。`yandu` 是日常运维入口；`yandu-cloud` 保留实际程序名称，兼容已有安装脚本、systemd 定义和旧网站映射的 SSH 固定命令。
@@ -32,8 +34,8 @@ storage-only 模式下，后台职责由 systemd 服务和启动命令确定：
 
 | 服务 | 执行的程序 / 子命令 | 职责 |
 | --- | --- | --- |
-| `yandu-gateway` | `yandu-cloud storage-gateway --config /etc/yandu/gateway.json` | 流式转发业务存储请求和只读监控查询，默认监听回环 19091 |
-| `yandu-frps` | `yandu-cloud tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml`，启动经过验证的官方 frps | 接收本机设备主动建立的 TLS 隧道，入口 7000，存储代理注册到回环 19090 |
+| `yandu-gateway` | `/usr/local/lib/yandu/yandu-gateway storage-gateway --config /etc/yandu/gateway.json` | 流式转发业务存储请求和只读监控查询，默认监听回环 19091 |
+| `yandu-frps` | `/usr/local/lib/yandu/yandu-tunnel tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml`，启动经过验证的官方 frps | 接收本机设备主动建立的 TLS 隧道，入口 7000，存储代理注册到回环 19090 |
 
 `yandu list`、`yandu disks` 是一次性查询，输出结果后退出。网关由 systemd 持续管理；日常查询时保持已有服务运行即可。旧只读映射的 `yandu-cloud serve` 则由 SSH 固定命令调用，处理授权范围内的云端配置同步，完成后退出。
 

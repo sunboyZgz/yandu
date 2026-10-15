@@ -166,6 +166,6 @@ services:
 - **修改端口**：见[云端端口配置](PORTS.md#云端-storage-only)。当前 7000 和 19090 受安装器、连接包约束；19091 可通过配置修改。
 - **构建与工具依赖**：源码构建云端包使用 `python3 release/build.py --target linux`；安装与启动的工具解析见[依赖检测](DEPENDENCY_TOOLS.md)。
 - **服务与监控**：安装器创建独立的 `yandu-frps`、`yandu-gateway` 服务身份，以及 `/etc/yandu/monitor.json` 只读监控配置。日志、监控凭证更新见后续的云端监控指南。
-- **已有部署**：升级使用发布包中的 `upgrade-cloud.sh`；卸载使用 `uninstall-cloud.sh`，保留 TLS、配对和恢复记录。旧只读网站映射需明确扩展 frps 允许端口、网关和连接包，不能直接用 storage-only 安装覆盖原站点配置。
+- **已有部署**：发布包中的 `upgrade-cloud.sh` 默认只更新 CLI，不重启服务。网关更新使用 `--component gateway --drain-timeout 300`，隧道更新使用 `--component tunnel --allow-disconnect`；先加 `--dry-run` 查看计划。旧网关首次切换需维护窗口，后续支持等待当前传输结束。卸载使用 `uninstall-cloud.sh`，保留 TLS、配对和恢复记录。旧只读网站映射需明确扩展 frps 允许端口、网关和连接包，不能直接用 storage-only 安装覆盖原站点配置。
 
 平台验收状态见[验证记录](STORAGE_VERIFICATION.md)。

@@ -5,7 +5,7 @@ description: 在保留配置和素材的前提下维护两端程序，并理解�
 
 # 升级、恢复与卸载
 
-本页适用于 `readonly_mapping`；应用存储请使用[通用存储指南](/guide/getting-started)。
+云端升级同时适用于网站资源映射和通用应用存储。本机应用存储的升级步骤见[通用存储部署](./storage-deployment.md)。
 
 业务素材与工具程序使用独立目录。维护前先核对当前项目、连接状态和需要保留的数据。
 
@@ -23,13 +23,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\upgrade-windows.ps1
 
 ## 升级云端组件
 
-在云端新包目录执行：
+在云端新包目录中先预览更新范围：
 
 ```bash
-sudo bash ./upgrade-cloud.sh
+sudo bash ./upgrade-cloud.sh --component cli --dry-run
 ```
 
-安装器备份自己的 helper/frps 并校验配置。frps 重连可能暂时影响资源连接，业务 Nginx 服务不重启。封禁状态会保留，不因升级自动解封。
+构建程序不会断开连接。脚本默认只更新 CLI，网关和隧道分别更新：
+
+| 更新范围 | 命令 | 连接影响 |
+| --- | --- | --- |
+| CLI（默认） | `sudo bash ./upgrade-cloud.sh --component cli` | 原子替换命令行程序，不重启服务；同目录只需新版 `yandu-cloud` |
+| 网关 | `sudo bash ./upgrade-cloud.sh --component gateway --drain-timeout 300` | 等待正在传输的请求完成，最长 300 秒；切换期间的新请求需重试 |
+| 隧道 | `sudo bash ./upgrade-cloud.sh --component tunnel --allow-disconnect` | 仅在 frps 或配置发生变化时重启；已有连接会断开，客户端需要重连或续传 |
+| 全部 | `sudo bash ./upgrade-cloud.sh --component all --allow-disconnect` | 分别应用上述规则，不因为 CLI 有变化就重启隧道 |
+
+`--dry-run` 可以与任一范围组合，校验候选程序/配置并展示计划，不替换文件、不操作服务。隧道更新需要完整包中的 `bin/frps`。活动隧道确需重启时，未提供 `--allow-disconnect` 会在替换程序前退出。
+
+网关和隧道启动器分别固定在 `/usr/local/lib/yandu/yandu-gateway`、`yandu-tunnel`，与 CLI 的 `yandu-cloud` 路径分离。旧部署首次执行升级时，会先固定旧运行文件并重载 systemd 定义，不为这一步重启服务。以后 CLI 更新不会改变后台服务下次启动使用的程序。
+
+新网关收到停止信号后停止接收新请求，等待当前 HTTP 传输结束。多分块上传的后续请求仍需要重试或续传。`--drain-timeout` 为等待秒数，范围 1–86400；systemd 的停止期限自动设置为等待时间加 15 秒。超过期限的传输会断开并报告失败，需客户端重试/续传。这不是零停机切换。
+
+**旧部署首次更新网关仍需维护窗口**：旧进程没有正确等待传输完成的能力，新代码不能改变已运行的旧进程。旧隧道没有运行指纹时，首次显式更新隧道会保守要求允许重连；后续才可根据已记录的程序和配置判断是否跳过重启。
+
+更新前会校验对应配置，备份本次涉及的程序和启动配置；替换、配置准备或服务启动检查失败时自动回退，只恢复本次已重启的服务。备份位于 `/etc/yandu/backups/upgrade-*`。证书、连接包、项目及业务凭据保留，无需重新配对。原本停止的服务不会自动启动，封禁状态也不会因升级解除；业务 Nginx 服务不重启。
 
 ## 进程或磁盘故障恢复
 

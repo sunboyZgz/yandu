@@ -32,7 +32,11 @@
 
 Windows：完整新包运行 `upgrade-windows.ps1`。先停服务，备份 DB/WAL 和旧程序组件，更新并检查管理健康。失败恢复旧程序和对应数据库备份。当前数据库模型没有不可逆迁移；未来增加迁移必须另设回退门槛。Windows 脚本的 SCM/ACL 行为尚需真机验收。
 
-Linux：`sudo bash upgrade-cloud.sh` 备份自己的 helper/frps，校验配置后重启 frps；组件重连会影响当前资源连接。Nginx 业务服务不重启。
+Linux：`sudo bash upgrade-cloud.sh` 默认只更新 CLI，不重启后台服务；`--component gateway --drain-timeout 300` 单独更新网关，等待活动请求完成；`--component tunnel --allow-disconnect` 在 frps/配置变化时重启隧道；`--component all --allow-disconnect` 更新全部组件。任一范围可加 `--dry-run` 预览。CLI 更新只需同目录的新版 `yandu-cloud`，隧道更新还需 `bin/frps`。
+
+旧部署首先将网关和隧道启动器固定到独立运行文件，CLI 更新不改变它们下次启动的版本。新网关收到停止信号后等待当前传输，超过退出期限才关闭剩余连接；systemd 的停止期限比排空等待多 15 秒。切换期间新请求需重试，不能保证零停机。旧网关首次切换尚无排空能力，应安排维护窗口；旧隧道首次建立运行指纹时也需明确允许重连。
+
+更新失败自动恢复本次涉及的程序、工具记录和启动配置，只重启本次已操作且原本运行的服务。备份在 `/etc/yandu/backups/upgrade-*`。配对、TLS 和业务凭据保留，停用或封禁的隧道不会自动启用；Nginx 业务服务不重启。
 
 卸载前先停用项目，等云端回执成功。
 

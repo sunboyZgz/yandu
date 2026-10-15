@@ -66,6 +66,8 @@ fi
 install -d -m 0750 /etc/yandu /etc/yandu/tls
 install -d -m 0755 /usr/local/lib/yandu
 install -m 0755 "$YANDU_SOURCE/yandu-cloud" /usr/local/lib/yandu/yandu-cloud
+ln /usr/local/lib/yandu/yandu-cloud /usr/local/lib/yandu/yandu-gateway
+ln /usr/local/lib/yandu/yandu-cloud /usr/local/lib/yandu/yandu-tunnel
 install -m 0755 "$YANDU_SOURCE/bin/frps" /usr/local/lib/yandu/frps
 install -d -m 0755 /usr/local/bin
 ln -sfn /usr/local/lib/yandu/yandu-cloud /usr/local/bin/yandu
@@ -80,7 +82,13 @@ chmod 0644 /etc/yandu/gateway.json
 # gateway needs traverse permission, never tunnel secrets.
 setfacl -m u:yandu-gateway:x /etc/yandu
 for component in frps gateway;do
- if [[ $component == frps ]];then YANDU_EXEC='/usr/local/lib/yandu/yandu-cloud tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml';else YANDU_EXEC='/usr/local/lib/yandu/yandu-cloud storage-gateway --config /etc/yandu/gateway.json';fi
+ if [[ $component == frps ]];then
+  YANDU_EXEC='/usr/local/lib/yandu/yandu-tunnel tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml'
+  YANDU_STOP_SETTINGS=
+ else
+  YANDU_EXEC='/usr/local/lib/yandu/yandu-gateway storage-gateway --config /etc/yandu/gateway.json'
+  YANDU_STOP_SETTINGS=$'Environment=YANDU_GATEWAY_SHUTDOWN_TIMEOUT=300s\nTimeoutStopSec=315s'
+ fi
  cat > "/etc/systemd/system/yandu-$component.service" <<UNIT
 [Unit]
 Description=Yandu $component
@@ -90,6 +98,7 @@ Wants=network-online.target
 User=yandu-$component
 Group=yandu-$component
 ExecStart=$YANDU_EXEC
+$YANDU_STOP_SETTINGS
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
@@ -103,6 +112,11 @@ done
 /usr/local/lib/yandu/yandu-cloud tools run frps --config /etc/yandu/tools.json -- verify -c /etc/yandu/frps.toml
 systemctl daemon-reload
 systemctl enable --now yandu-frps yandu-gateway
+# Record the exact code/configuration loaded on first start. Later CLI-only
+# changes do not invalidate these runtime fingerprints.
+{ sha256sum < /usr/local/lib/yandu/frps;sha256sum < /etc/yandu/frps.toml;printf '%s\n' /usr/local/lib/yandu/frps; } | sha256sum | cut -d ' ' -f1 > /etc/yandu/tunnel-applied.sha256
+{ sha256sum < /usr/local/lib/yandu/yandu-gateway;sha256sum < /etc/yandu/gateway.json;printf '%s\n' 300s; } | sha256sum | cut -d ' ' -f1 > /etc/yandu/gateway-applied.sha256
+chmod 0600 /etc/yandu/tunnel-applied.sha256 /etc/yandu/gateway-applied.sha256
 cd /etc/yandu
 if ! /usr/local/lib/yandu/yandu-cloud pair --scope storage-only --device "$DEVICE" --server "$SERVER" --out "$DEVICE.yandu-profile";then
  echo '云端服务已安装并启用，连接包生成未完成。若上方是口令错误，可用以下命令继续配对：' >&2

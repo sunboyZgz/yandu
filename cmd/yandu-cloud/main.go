@@ -13,12 +13,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
-	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 	"yandu/internal/cloud"
 	"yandu/internal/cloudsync"
@@ -226,43 +223,6 @@ func pair(args []string) error {
 	return nil
 }
 
-func gateway(args []string) error {
-	fs := flag.NewFlagSet("storage-gateway", flag.ContinueOnError)
-	config := fs.String("config", "/etc/yandu/gateway.json", "网关配置")
-	if e := fs.Parse(args); e != nil {
-		return e
-	}
-	data, e := os.ReadFile(*config)
-	if e != nil {
-		return e
-	}
-	var c cloud.GatewayConfig
-	if e = json.Unmarshal(data, &c); e != nil {
-		return e
-	}
-	h, e := cloud.NewGateway(c)
-	if e != nil {
-		return e
-	}
-	server := &http.Server{Addr: c.Listen, Handler: h, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	go func() {
-		<-ctx.Done()
-		shutdown, stop := context.WithTimeout(context.Background(), 5*time.Second)
-		defer stop()
-		server.Shutdown(shutdown)
-	}()
-	if c.TLSCert != "" {
-		e = server.ListenAndServeTLS(c.TLSCert, c.TLSKey)
-	} else {
-		e = server.ListenAndServe()
-	}
-	if e == http.ErrServerClosed {
-		return nil
-	}
-	return e
-}
 func storagePair(dir, device, server, tlsName, out string, refreshMonitor bool) error {
 	data, e := os.ReadFile(filepath.Join(dir, "storage-owner.json"))
 	if e == nil && len(data) > 0 {

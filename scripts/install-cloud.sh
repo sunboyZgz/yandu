@@ -44,7 +44,9 @@ r=json.load(open('/etc/yandu/registry.json'));s=[x for x in r['sites'] if x['id'
 if not s:sys.exit('已有安装参数不同；新增站点或扩大授权需要云端管理员操作，不覆盖注册表')
 PY
 fi
+YANDU_FRESH_INSTALL=0
 if [[ ! -f /etc/yandu/registry.json ]];then
+ YANDU_FRESH_INSTALL=1
  for YANDU_ACCOUNT in yandu-sync yandu-frps;do if id "$YANDU_ACCOUNT" >/dev/null 2>&1;then echo "已有同名账号 $YANDU_ACCOUNT，缺少本工具归属记录，停止安装" >&2;exit 1;fi;done
  for YANDU_OWNED_FILE in /etc/systemd/system/yandu-frps.service /etc/ssh/yandu_authorized_keys /etc/sudoers.d/yandu;do if [[ -e $YANDU_OWNED_FILE ]];then echo "已有同名文件 $YANDU_OWNED_FILE，停止以避免覆盖" >&2;exit 1;fi;done
 fi
@@ -67,6 +69,7 @@ install -d -m 0700 /etc/yandu /etc/yandu/tls /etc/yandu/backups /etc/yandu/nginx
 install -d -m 0755 /usr/local/lib/yandu
 if [[ -f /usr/local/lib/yandu/yandu-cloud ]];then cp /usr/local/lib/yandu/yandu-cloud "/etc/yandu/backups/yandu-cloud.$(date +%s)";fi
 install -m 0755 "$YANDU_SOURCE/yandu-cloud" /usr/local/lib/yandu/yandu-cloud
+ln -f /usr/local/lib/yandu/yandu-cloud /usr/local/lib/yandu/yandu-tunnel
 install -m 0755 "$YANDU_SOURCE/bin/frps" /usr/local/lib/yandu/frps
 install -d -m 0755 /usr/local/bin
 ln -sfn /usr/local/lib/yandu/yandu-cloud /usr/local/bin/yandu
@@ -157,7 +160,7 @@ Wants=network-online.target
 [Service]
 User=yandu-frps
 Group=yandu-frps
-ExecStart=/usr/local/lib/yandu/yandu-cloud tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml
+ExecStart=/usr/local/lib/yandu/yandu-tunnel tools run frps --config /etc/yandu/tools.json -- -c /etc/yandu/frps.toml
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -168,7 +171,13 @@ PrivateTmp=true
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
-if python3 -c 'import json,sys;sys.exit(1 if any(s.get("blocked") for s in json.load(open("/etc/yandu/registry.json"))["sites"]) else 0)';then systemctl enable --now yandu-frps;else systemctl disable --now yandu-frps;echo '站点封禁状态保持，未启动资源隧道';fi
+if python3 -c 'import json,sys;sys.exit(1 if any(s.get("blocked") for s in json.load(open("/etc/yandu/registry.json"))["sites"]) else 0)';then
+ systemctl enable --now yandu-frps
+ if [[ $YANDU_FRESH_INSTALL == 1 ]];then
+  { sha256sum < /usr/local/lib/yandu/frps;sha256sum < /etc/yandu/frps.toml;printf '%s\n' /usr/local/lib/yandu/frps; } | sha256sum | cut -d ' ' -f1 > /etc/yandu/tunnel-applied.sha256
+  chmod 0600 /etc/yandu/tunnel-applied.sha256
+ fi
+else systemctl disable --now yandu-frps;echo '站点封禁状态保持，未启动资源隧道';fi
 if [[ ! -f /etc/yandu/authorized_keys ]];then
  /usr/local/lib/yandu/yandu-cloud pair --device "$DEVICE" --server "$SERVER" --tls-name "$DOMAIN" --site "$SITE" --out "$YANDU_SOURCE/$SITE.yandu-profile"
 fi
