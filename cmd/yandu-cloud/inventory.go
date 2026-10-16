@@ -17,11 +17,24 @@ func inventoryCommand(command string, args []string, out, errOut io.Writer) erro
 	config := fs.String("config", "/etc/yandu/monitor.json", "只读监控配置")
 	jsonOutput := fs.Bool("json", false, "输出 JSON")
 	timeout := fs.Duration("timeout", 30*time.Second, "完整设备采样超时")
-	if e := fs.Parse(args); e != nil {
+	usage := fmt.Sprintf("用法：yandu %s [--json] [--config PATH] [--timeout 30s]", command)
+	if command == "list" {
+		usage = "用法：yandu list [项目ID或名称[,项目ID或名称...]] [--json] [--config PATH] [--timeout 30s]"
+	}
+	fs.Usage = func() {
+		fmt.Fprintln(errOut, usage)
+		fs.PrintDefaults()
+	}
+	projectArgs, e := parseInventoryFlags(fs, args)
+	if e != nil {
 		return e
 	}
-	if fs.NArg() != 0 || *timeout <= 0 || *timeout > 5*time.Minute {
-		return fmt.Errorf("用法：yandu %s [--json] [--config PATH] [--timeout 30s]", command)
+	if command != "list" && len(projectArgs) > 0 || *timeout <= 0 || *timeout > 5*time.Minute {
+		return fmt.Errorf("%s", usage)
+	}
+	selectors, e := projectSelectors(projectArgs)
+	if e != nil {
+		return e
 	}
 	c, e := cloud.LoadMonitorConfig(*config)
 	if e != nil {
@@ -46,6 +59,17 @@ func inventoryCommand(command string, args []string, out, errOut io.Writer) erro
 	}
 	if !result.SampledAt.IsZero() {
 		result.SnapshotAgeSeconds = inventory.Nonnegative(int64(time.Since(result.SampledAt).Seconds()))
+	}
+	if len(selectors) > 0 && (result.Online || result.Stale) {
+		var selectionError error
+		result.Report, selectionError = filterInventory(result.Report, selectors)
+		if selectionError != nil {
+			fetchError = errors.Join(fetchError, selectionError)
+			result.Error = fetchError.Error()
+			if !*jsonOutput {
+				return fetchError
+			}
+		}
 	}
 	if *jsonOutput {
 		e = json.NewEncoder(out).Encode(result)
