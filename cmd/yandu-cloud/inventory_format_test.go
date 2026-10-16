@@ -30,12 +30,44 @@ func presentationFixture() inventory.Result {
 func TestInventoryTableChineseAndNumericAlignment(t *testing.T) {
 	var out bytes.Buffer
 	p := &inventoryPrinter{out: &out, width: 80}
-	if !p.table([]inventoryColumn{{"名称", 4, 8, false}, {"ID", 2, 8, false}, {"已用", 4, 8, true}}, [][]string{{"图库", "photos", "1 MiB"}, {"abc", "x", "9 GiB"}}) {
+	if !p.table([]inventoryColumn{{"名称", 4, 8, false}, {"ID", 2, 8, false}, {"已用", 4, 8, true}}, []inventoryRow{{values: []string{"图库", "photos", "1 MiB"}}, {values: []string{"abc", "x", "9 GiB"}}}) {
 		t.Fatal("small table should fit")
 	}
-	want := "名称  ID       已用\n" + strings.Repeat("─", 19) + "\n图库  photos  1 MiB\nabc   x       9 GiB\n"
+	want := `┌──────┬────────┬───────┐
+│ 名称 │ ID     │  已用 │
+├──────┼────────┼───────┤
+│ 图库 │ photos │ 1 MiB │
+├──────┼────────┼───────┤
+│ abc  │ x      │ 9 GiB │
+└──────┴────────┴───────┘
+`
 	if out.String() != want {
 		t.Fatalf("columns are not aligned by terminal cells:\n%s\nwant:\n%s", out.String(), want)
+	}
+}
+
+func TestInventoryDetailsStayWithTheirRecordAndUseAvailableWidth(t *testing.T) {
+	var out bytes.Buffer
+	p := &inventoryPrinter{out: &out, width: 100}
+	path := "/Users/example/Documents/projects/browser-demo/storage"
+	if !p.table([]inventoryColumn{{"项目", 4, 12, false}, {"已用", 4, 12, true}}, []inventoryRow{
+		{[]string{"中文名称\nproject-one", "1.00 GiB"}, []inventoryDetail{{"目录：", path, false}}},
+		{[]string{"第二个项目", "1023 B"}, []inventoryDetail{{"目录：", "/second", false}}},
+	}) {
+		t.Fatal("table should fit")
+	}
+	text := out.String()
+	if !strings.Contains(text, path) {
+		t.Fatal("path wrapped despite available terminal space")
+	}
+	first, second := strings.Index(text, path), strings.Index(text, "第二个项目")
+	if first < 0 || first >= second || !strings.Contains(text[:first], "┴") || !strings.Contains(text[first:second], "┬") {
+		t.Fatal("details are not enclosed with their own record")
+	}
+	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
+		if cells.StringWidth(line) != cells.StringWidth(strings.Split(text, "\n")[0]) {
+			t.Fatalf("unequal row width: %q", line)
+		}
 	}
 }
 
@@ -49,6 +81,21 @@ func TestInventoryPresentationFitsTerminalAndKeepsFullValues(t *testing.T) {
 			return r
 		}, s)
 	}
+	// Reassemble each logical column across wrapped physical lines. Border
+	// characters and other columns must not interrupt a name or identifier.
+	contents := func(text string) string {
+		var columns [8]string
+		for _, line := range strings.Split(text, "\n") {
+			if !strings.HasPrefix(line, "│") {
+				continue
+			}
+			parts := strings.Split(line, "│")
+			for i, part := range parts[1 : len(parts)-1] {
+				columns[i] += compact(part)
+			}
+		}
+		return compact(text) + strings.Join(columns[:], "\n")
+	}
 	for _, width := range []int{24, 40, 80, 100, 120, 180} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			var out bytes.Buffer
@@ -56,6 +103,7 @@ func TestInventoryPresentationFitsTerminalAndKeepsFullValues(t *testing.T) {
 				t.Fatal(err)
 			}
 			text := out.String()
+			fullValues := contents(text)
 			if !utf8.ValidString(text) || strings.ContainsAny(text, "\t\x1b") {
 				t.Fatal("invalid terminal text")
 			}
@@ -66,16 +114,25 @@ func TestInventoryPresentationFitsTerminalAndKeepsFullValues(t *testing.T) {
 			}
 			for _, project := range r.Projects {
 				for _, value := range []string{project.ID, project.Name, project.RootPath, project.Error} {
-					if !strings.Contains(compact(text), compact(value)) {
+					if !strings.Contains(fullValues, compact(value)) {
 						t.Fatalf("complete value lost at width %d: %q", width, value)
 					}
 				}
 			}
-			if width == 80 && !strings.Contains(text, "1. 家庭相册") {
-				t.Fatal("narrow terminal should use project details")
+			if width == 40 && !strings.Contains(text, "│ ID：photos") {
+				t.Fatal("narrow terminal should use bordered project cards")
 			}
-			if width == 120 && !strings.Contains(text, "项目 ID") {
-				t.Fatal("wide terminal should use project table")
+			if width >= 80 && !strings.Contains(text, "│ 项目 / ID") {
+				t.Fatal("ordinary terminals should keep a bordered project table")
+			}
+			borderWidth := 0
+			for _, line := range strings.Split(text, "\n") {
+				if strings.HasPrefix(line, "┌") {
+					borderWidth = cells.StringWidth(line)
+				}
+				if strings.ContainsAny(line, "│├└") && cells.StringWidth(line) != borderWidth {
+					t.Fatalf("broken border at width %d: %q", width, line)
+				}
 			}
 		})
 	}
@@ -88,7 +145,7 @@ func TestInventoryPresentationEmptyOfflineAndDiskViews(t *testing.T) {
 		disksOnly    bool
 		want, absent string
 	}{
-		{"empty", inventory.Result{Online: true}, false, "暂无项目", "项目 ID"},
+		{"empty", inventory.Result{Online: true}, false, "暂无项目", "项目 / ID"},
 		{"offline", inventory.Result{Error: "DEVICE_OFFLINE"}, false, "没有可用的设备快照", "磁盘 / 共享容器"},
 		{"disks", presentationFixture(), true, "APFS", "家庭相册"},
 	} {

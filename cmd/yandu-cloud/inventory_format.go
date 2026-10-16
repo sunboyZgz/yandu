@@ -89,6 +89,16 @@ type inventoryColumn struct {
 	rightAlign bool
 }
 
+type inventoryDetail struct {
+	label, value string
+	rightAlign   bool
+}
+
+type inventoryRow struct {
+	values  []string
+	details []inventoryDetail
+}
+
 func padCell(s string, width int, right bool) string {
 	padding := strings.Repeat(" ", max(0, width-cells.StringWidth(s)))
 	if right {
@@ -97,21 +107,58 @@ func padCell(s string, width int, right bool) string {
 	return s + padding
 }
 
-// Returns false when the columns cannot fit; the caller then uses details.
-func (p *inventoryPrinter) table(columns []inventoryColumn, rows [][]string) bool {
+func wrapCell(value string, width int) []string {
+	var lines []string
+	for _, paragraph := range strings.Split(value, "\n") {
+		lines = append(lines, strings.Split(cells.Wrap(cleanCell(paragraph), width), "\n")...)
+	}
+	return lines
+}
+
+func detailLines(detail inventoryDetail, width int) []string {
+	label := cleanCell(detail.label)
+	labelWidth := cells.StringWidth(label)
+	if detail.rightAlign && labelWidth+cells.StringWidth(cleanCell(detail.value)) <= width {
+		return []string{label + padCell(cleanCell(detail.value), width-labelWidth, true)}
+	}
+	lines := wrapCell(cleanCell(detail.value), max(2, width-labelWidth))
+	for i := range lines {
+		if i == 0 {
+			lines[i] = label + lines[i]
+		} else {
+			lines[i] = strings.Repeat(" ", labelWidth) + lines[i]
+		}
+	}
+	return lines
+}
+
+// Every record includes its own details inside the border, so a wrapped path
+// remains visibly attached to the project or disk it describes.
+// Returns false when the columns cannot fit; the caller then uses bordered cards.
+func (p *inventoryPrinter) table(columns []inventoryColumn, rows []inventoryRow) bool {
 	widths := make([]int, len(columns))
-	total := 2 * (len(columns) - 1)
+	minimums := make([]int, len(columns))
+	total := 3*len(columns) + 1 // One space on each side of every cell, plus borders.
 	for i, column := range columns {
-		widths[i] = max(column.min, cells.StringWidth(column.title))
+		minimums[i] = max(column.min, cells.StringWidth(column.title))
+		widths[i] = minimums[i]
 		for _, row := range rows {
-			widths[i] = max(widths[i], min(column.max, cells.StringWidth(cleanCell(row[i]))))
+			for _, line := range strings.Split(row.values[i], "\n") {
+				width := cells.StringWidth(cleanCell(line))
+				widths[i] = max(widths[i], min(column.max, width))
+				if column.rightAlign {
+					// Keep each number and its unit together, even at narrow widths.
+					minimums[i] = max(minimums[i], width)
+					widths[i] = max(widths[i], minimums[i])
+				}
+			}
 		}
 		total += widths[i]
 	}
 	for total > p.width {
 		widest := -1
-		for i, column := range columns {
-			if widths[i] > max(column.min, cells.StringWidth(column.title)) && (widest == -1 || widths[i] > widths[widest]) {
+		for i := range columns {
+			if widths[i] > minimums[i] && (widest == -1 || widths[i] > widths[widest]) {
 				widest = i
 			}
 		}
@@ -121,11 +168,30 @@ func (p *inventoryPrinter) table(columns []inventoryColumn, rows [][]string) boo
 		widths[widest]--
 		total--
 	}
+	// A long path may need more room than the compact summary columns. Use
+	// available terminal space before wrapping the full-width detail cell.
+	preferred := total
+	for _, row := range rows {
+		for _, detail := range row.details {
+			preferred = max(preferred, cells.StringWidth(cleanCell(detail.label+detail.value))+4)
+		}
+	}
+	if extra := min(preferred, p.width) - total; extra > 0 {
+		widths[0] += extra
+		total += extra
+	}
+	border := func(left, joint, right string) {
+		parts := make([]string, len(widths))
+		for i, width := range widths {
+			parts[i] = strings.Repeat("─", width+2)
+		}
+		p.line(left + strings.Join(parts, joint) + right)
+	}
 	printRow := func(row []string) {
 		lines := make([][]string, len(columns))
 		height := 1
 		for i, value := range row {
-			lines[i] = strings.Split(cells.Wrap(cleanCell(value), widths[i]), "\n")
+			lines[i] = wrapCell(value, widths[i])
 			height = max(height, len(lines[i]))
 		}
 		for line := 0; line < height; line++ {
@@ -137,19 +203,51 @@ func (p *inventoryPrinter) table(columns []inventoryColumn, rows [][]string) boo
 				}
 				parts[i] = padCell(value, widths[i], column.rightAlign)
 			}
-			p.line(strings.TrimRight(strings.Join(parts, "  "), " "))
+			p.line("│ " + strings.Join(parts, " │ ") + " │")
 		}
 	}
 	headers := make([]string, len(columns))
 	for i, column := range columns {
 		headers[i] = column.title
 	}
+	border("┌", "┬", "┐")
 	printRow(headers)
-	p.line(strings.Repeat("─", total))
-	for _, row := range rows {
-		printRow(row)
+	border("├", "┼", "┤")
+	for i, row := range rows {
+		printRow(row.values)
+		if len(row.details) > 0 {
+			border("├", "┴", "┤")
+			for _, detail := range row.details {
+				for _, line := range detailLines(detail, total-4) {
+					p.line("│ " + padCell(line, total-4, false) + " │")
+				}
+			}
+			if i < len(rows)-1 {
+				border("├", "┬", "┤")
+			} else {
+				p.line("└" + strings.Repeat("─", total-2) + "┘")
+			}
+		} else if i < len(rows)-1 {
+			border("├", "┼", "┤")
+		} else {
+			border("└", "┴", "┘")
+		}
 	}
 	return true
+}
+
+func (p *inventoryPrinter) card(title string, details []inventoryDetail) {
+	p.line("┌" + strings.Repeat("─", p.width-2) + "┐")
+	for _, line := range wrapCell(title, p.width-4) {
+		p.line("│ " + padCell(line, p.width-4, false) + " │")
+	}
+	p.line("├" + strings.Repeat("─", p.width-2) + "┤")
+	for _, detail := range details {
+		for _, line := range detailLines(detail, p.width-4) {
+			p.line("│ " + padCell(line, p.width-4, false) + " │")
+		}
+	}
+	p.line("└" + strings.Repeat("─", p.width-2) + "┘")
 }
 
 func displayState(value string) string {
@@ -177,18 +275,12 @@ func displayMode(value string) string {
 	}
 }
 
-func (p *inventoryPrinter) metrics(labels, values []string) {
-	perLine := 1
-	if p.width >= 56 {
-		perLine = 2
+func capacityDetails(labels, values []string) []inventoryDetail {
+	var details []inventoryDetail
+	for i, label := range labels {
+		details = append(details, inventoryDetail{label + "：", values[i], true})
 	}
-	for start := 0; start < len(labels); start += perLine {
-		parts := []string{}
-		for i := start; i < min(start+perLine, len(labels)); i++ {
-			parts = append(parts, padCell(labels[i], 8, false)+"  "+padCell(values[i], 12, true))
-		}
-		p.line("  " + strings.Join(parts, "    "))
-	}
+	return details
 }
 
 func printInventory(out io.Writer, r inventory.Result, disksOnly bool) error {
@@ -230,77 +322,91 @@ func printInventoryWidth(out io.Writer, r inventory.Result, disksOnly bool, widt
 	if !disksOnly {
 		p.line("")
 		p.line(fmt.Sprintf("项目（%d）", len(r.Projects)))
-		rows := [][]string{}
+		rows := []inventoryRow{}
 		for _, project := range r.Projects {
 			disk := diskLabels[project.DiskID]
 			if disk == "" {
 				disk = "未知"
 			}
-			rows = append(rows, []string{project.ID, project.Name, displayMode(project.Mode), displayState(project.State), displayState(project.StorageState), disk, humanBytes(project.QuotaBytes), humanBytes(project.UsedBytes), humanBytes(project.ReservedBytes), humanBytes(project.RemainingQuotaBytes)})
+			identity := cleanCell(project.Name)
+			if identity == "" || identity == project.ID {
+				identity = cleanCell(project.ID)
+			} else {
+				identity += "\n" + cleanCell(project.ID)
+			}
+			state := "配置：" + cleanCell(displayState(project.State))
+			if project.StorageState != "" {
+				state += "\n存储：" + cleanCell(displayState(project.StorageState))
+			}
+			details := []inventoryDetail{
+				{"模式：", displayMode(project.Mode) + "  ·  磁盘：" + disk, false},
+				{"目录：", project.RootPath, false},
+			}
+			if project.Error != "" {
+				details = append(details, inventoryDetail{"错误：", project.Error, false})
+			}
+			rows = append(rows, inventoryRow{
+				[]string{identity, state, humanBytes(project.QuotaBytes), humanBytes(project.UsedBytes), humanBytes(project.ReservedBytes), humanBytes(project.RemainingQuotaBytes)},
+				details,
+			})
 		}
-		columns := []inventoryColumn{{"项目 ID", 10, 24, false}, {"名称", 8, 20, false}, {"模式", 8, 12, false}, {"配置状态", 8, 16, false}, {"存储状态", 8, 12, false}, {"磁盘", 4, 6, false}, {"配额", 9, 12, true}, {"已用", 9, 12, true}, {"预留", 8, 12, true}, {"剩余额度", 9, 12, true}}
+		columns := []inventoryColumn{{"项目 / ID", 10, 32, false}, {"状态", 12, 18, false}, {"配额", 9, 12, true}, {"已用", 9, 12, true}, {"预留", 8, 12, true}, {"剩余额度", 9, 12, true}}
 		if len(rows) == 0 {
 			p.line("暂无项目。请在本机管理页创建项目。")
-		} else if p.table(columns, rows) {
-			p.line("")
-			p.line("项目明细")
-			for _, project := range r.Projects {
-				p.text("  ", project.ID+" · "+project.Name)
-				p.text("    目录：", project.RootPath)
-				if project.Error != "" {
-					p.text("    错误：", project.Error)
-				}
-			}
-		} else {
+		} else if !p.table(columns, rows) {
 			for i, row := range rows {
 				if i > 0 {
 					p.line("")
 				}
-				p.text(fmt.Sprintf("%d. ", i+1), row[1])
-				p.text("  ID：", row[0])
-				p.text("  状态：", row[2]+" / "+row[3]+"  存储："+row[4]+"  磁盘："+row[5])
-				p.metrics([]string{"配额", "已用", "预留", "剩余额度"}, row[6:])
-				p.text("  目录：", r.Projects[i].RootPath)
-				if r.Projects[i].Error != "" {
-					p.text("  错误：", r.Projects[i].Error)
+				project := r.Projects[i]
+				details := []inventoryDetail{{"ID：", project.ID, false}, {"配置：", displayState(project.State), false}}
+				if project.StorageState != "" {
+					details = append(details, inventoryDetail{"存储：", displayState(project.StorageState), false})
 				}
+				details = append(details, capacityDetails([]string{"配额", "已用", "预留", "剩余额度"}, row.values[2:])...)
+				details = append(details, row.details...)
+				title := cleanCell(project.Name)
+				if title == "" {
+					title = cleanCell(project.ID)
+				}
+				p.card(title, details)
 			}
 		}
 	}
 	p.line("")
 	p.line(fmt.Sprintf("磁盘 / 共享容器（%d）", len(r.Disks)))
-	rows := [][]string{}
+	rows := []inventoryRow{}
 	for _, disk := range r.Disks {
 		state := "可查询"
 		if disk.Error != "" {
 			state = "异常"
 		}
-		rows = append(rows, []string{diskLabels[disk.ID], disk.Filesystem, humanBytes(disk.TotalBytes), humanBytes(disk.FreeBytes), humanBytes(inventory.Bytes(disk.ReservedBytes)), humanBytes(disk.AvailableAfterReservationsBytes), state})
+		details := []inventoryDetail{{"标识：", disk.ID, false}, {"挂载：", strings.Join(disk.MountPoints, ", "), false}, {"项目：", strings.Join(disk.ProjectIDs, ", "), false}}
+		if disk.Error != "" {
+			details = append(details, inventoryDetail{"错误：", disk.Error, false})
+		}
+		rows = append(rows, inventoryRow{[]string{diskLabels[disk.ID], disk.Filesystem, humanBytes(disk.TotalBytes), humanBytes(disk.FreeBytes), humanBytes(inventory.Bytes(disk.ReservedBytes)), humanBytes(disk.AvailableAfterReservationsBytes), state}, details})
 	}
 	columns := []inventoryColumn{{"磁盘", 4, 6, false}, {"文件系统", 8, 12, false}, {"总容量", 10, 12, true}, {"空闲", 10, 12, true}, {"预留", 9, 12, true}, {"可用空间", 10, 12, true}, {"状态", 6, 8, false}}
 	if len(rows) == 0 {
 		p.line("暂无可查询的受管磁盘。")
-	} else {
-		table := p.table(columns, rows)
+	} else if !p.table(columns, rows) {
 		for i, disk := range r.Disks {
-			p.line("")
-			if table {
-				p.text("  "+diskLabels[disk.ID]+" 标识：", disk.ID)
-			} else {
-				p.text(diskLabels[disk.ID]+" · ", disk.Filesystem+" / "+rows[i][6])
-				p.metrics([]string{"总容量", "空闲", "预留", "可用空间"}, rows[i][2:6])
-				p.text("  标识：", disk.ID)
+			if i > 0 {
+				p.line("")
 			}
-			p.text("  挂载：", strings.Join(disk.MountPoints, ", "))
-			p.text("  项目：", strings.Join(disk.ProjectIDs, ", "))
-			if disk.Error != "" {
-				p.text("  错误：", disk.Error)
-			}
+			details := []inventoryDetail{{"文件系统：", disk.Filesystem, false}, {"状态：", rows[i].values[6], false}}
+			details = append(details, capacityDetails([]string{"总容量", "空闲", "预留", "可用空间"}, rows[i].values[2:6])...)
+			details = append(details, rows[i].details...)
+			p.card(diskLabels[disk.ID], details)
 		}
 	}
 	p.line("")
 	p.text("", fmt.Sprintf("合计：%d 项目，%d 个受管磁盘/容器", r.Summary.ProjectCount, r.Summary.DiskCount))
-	p.metrics([]string{"总容量", "空闲", "可用空间"}, []string{humanBytes(r.Summary.TotalBytes), humanBytes(r.Summary.FreeBytes), humanBytes(r.Summary.AvailableAfterReservationsBytes)})
+	capacity := []string{humanBytes(r.Summary.TotalBytes), humanBytes(r.Summary.FreeBytes), humanBytes(r.Summary.AvailableAfterReservationsBytes)}
+	if !p.table([]inventoryColumn{{"总容量", 9, 12, true}, {"空闲", 9, 12, true}, {"可用空间", 9, 12, true}}, []inventoryRow{{values: capacity}}) {
+		p.card("容量合计", capacityDetails([]string{"总容量", "空闲", "可用空间"}, capacity))
+	}
 	p.line("")
 	p.text("说明：", "可用空间已扣除预留及安全余量，不等于可上传文件大小。")
 	p.text("      ", "仅统计项目所在磁盘，共享空间只计一次；未知项会使合计显示未知。")
