@@ -34,6 +34,8 @@ Windows 新克隆后先运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass
 
 云端也支持从源码仓库直接安装：根目录的 `install-cloud.sh` 检查复用 Go/Python，准备云端程序与 frps，无需 Node/npm 或预先打包；缺少系统依赖时需显式加 `--allow-system-install`。环境检查用 `bash ./setup-cloud-env.sh --check`，见[环境准备](docs/ENVIRONMENT.md)与[云端启动](docs/CLOUD_STARTUP.md)。
 
+已有云端部署可在源码根目录直接执行 `sudo bash ./upgrade-cloud.sh`：自动编译并只更新 CLI，不重启服务。网关、隧道可通过 `--component gateway|tunnel|all` 分别更新，源码 `--dry-run` 只检查环境与更新范围、不编译或下载，详见[升级维护](docs-site/guide/maintenance.md)。
+
 项目级 MP4 压缩支持固定字节上限、上传时明确的超限策略、原件完整保留、精确任务查询和实测产物摘要；用法见[媒体指南](docs-site/guide/media.md)，实际结果与待验收项见[压缩验收记录](docs/MEDIA_ACCEPTANCE.md)。
 
 ## 兼容的只读网站映射

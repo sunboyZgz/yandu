@@ -6,6 +6,16 @@ YANDU_LIB=/usr/local/lib/yandu
 YANDU_UNITS=/etc/systemd/system
 YANDU_CLI_LINK=/usr/local/bin/yandu
 YANDU_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# Source checkouts prepare a temporary candidate; release packages already have it.
+if [[ -f $YANDU_SOURCE/../go.mod && -d $YANDU_SOURCE/../cmd/yandu-cloud && -f $YANDU_SOURCE/prepare-cloud-upgrade.py ]];then
+ for YANDU_PYTHON in python3 /usr/bin/python3 python;do
+  if command -v "$YANDU_PYTHON" >/dev/null && "$YANDU_PYTHON" -c 'import struct,sys;sys.exit(not(sys.version_info >= (3,10) and struct.calcsize("P") == 8))' 2>/dev/null;then
+   exec "$YANDU_PYTHON" "$YANDU_SOURCE/prepare-cloud-upgrade.py" "$@"
+  fi
+ done
+ echo '源码升级需要 Python 3.10+（64 位）；请先准备环境：sudo bash ./setup-cloud-env.sh --allow-system-install' >&2
+ exit 1
+fi
 YANDU_COMPONENT=cli YANDU_DRY=0 YANDU_ALLOW_DISCONNECT=0 YANDU_DRAIN=300
 usage() {
  cat <<'HELP'

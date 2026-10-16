@@ -32,7 +32,9 @@
 
 Windows：完整新包运行 `upgrade-windows.ps1`。先停服务，备份 DB/WAL 和旧程序组件，更新并检查管理健康。失败恢复旧程序和对应数据库备份。当前数据库模型没有不可逆迁移；未来增加迁移必须另设回退门槛。Windows 脚本的 SCM/ACL 行为尚需真机验收。
 
-Linux：`sudo bash upgrade-cloud.sh` 默认只更新 CLI，不重启后台服务；`--component gateway --drain-timeout 300` 单独更新网关，等待活动请求完成；`--component tunnel --allow-disconnect` 在 frps/配置变化时重启隧道；`--component all --allow-disconnect` 更新全部组件。任一范围可加 `--dry-run` 预览。CLI 更新只需同目录的新版 `yandu-cloud`，隧道更新还需 `bin/frps`。
+Linux：`sudo bash ./upgrade-cloud.sh` 默认只更新 CLI，不重启后台服务；`--component gateway --drain-timeout 300` 单独更新网关，等待活动请求完成；`--component tunnel --allow-disconnect` 在 frps/配置变化时重启隧道；`--component all --allow-disconnect` 更新全部组件。任一范围可加 `--dry-run` 预览。
+
+上述命令可直接在云服务器上的源码仓库根目录执行（也兼容 `scripts/upgrade-cloud.sh`），无需预先打包。入口检查已有云端环境及 Go/Python，临时编译云端 Go 程序，CLI/网关更新不准备 frps，隧道/全部更新才复用或下载校验 frps；不需要 Node/npm 或前端构建。准备成功后交给同一分组件升级流程，失败不进入部署，临时目录自动清理。缺少系统工具时先显式运行 `sudo bash ./setup-cloud-env.sh --allow-system-install`。源码 `--dry-run` 只检查环境和更新范围，不编译、下载或操作服务，具体重启计划在正式构建后计算。命令也适用于 Linux 发布包，CLI 更新只需同目录的新版 `yandu-cloud`，隧道更新还需 `bin/frps`；发布包 `--dry-run` 会校验包内已有候选程序并计算具体计划。
 
 旧部署首先将网关和隧道启动器固定到独立运行文件，CLI 更新不改变它们下次启动的版本。新网关收到停止信号后等待当前传输，超过退出期限才关闭剩余连接；systemd 的停止期限比排空等待多 15 秒。切换期间新请求需重试，不能保证零停机。旧网关首次切换尚无排空能力，应安排维护窗口；旧隧道首次建立运行指纹时也需明确允许重连。
 

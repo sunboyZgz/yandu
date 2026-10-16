@@ -12,6 +12,7 @@ check: ui
 	python3 scripts/test_cloud_install.py
 	python3 scripts/test_cloud_upgrade.py
 	python3 scripts/test_prepare_cloud.py
+	python3 scripts/test_prepare_cloud_upgrade.py
 	python3 scripts/test_cloud_env.py
 test-race:
 	go test -race ./...
